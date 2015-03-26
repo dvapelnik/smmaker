@@ -2,249 +2,107 @@ var _ = require('underscore');
 var EventEmitter = require('events').EventEmitter;
 var util = require('util');
 var Url = require('url');
+var cheerio = require('cheerio');
 var extend = require('extend');
-var Spooky;
+var http = require('http');
+var winston = require('winston');
 
-try {
-  Spooky = require('spooky');
-} catch (e) {
-  Spooky = require('../lib/spooky');
-}
-
-function SmMaker() {
-  var spookyWorkerOptions = {
-    child: {transport: 'http'},
-    casper: {logLevel: 'debug', verbose: true}
+module.exports = function (options) {
+  options = options || {
+    logger: new (winston.Logger)({
+      transports: [
+        new (winston.transports.Console)()
+      ]
+    })
   };
 
-  //region Properties
-  this.targetSiteUri = undefined;
-  this.maxDepth = undefined;
-  this.countOfWorkers = undefined;
-  this.changeFreq = undefined;
-  this.evaluatePriority = undefined;
-  this.maxCountOfUrl = undefined;
+  var logger = options.logger;
 
-  this.workers = [];
-  this.siteMapUris = [];
-  this.urlPool = [];
+  function SmMaker(socketConnection) {
+    //region Properties
+    this.targetSiteUri = undefined;
+    this.maxDepth = undefined;
+    this.countOfWorkers = undefined;
+    this.changeFreq = undefined;
+    this.evaluatePriority = undefined;
+    this.maxCountOfUrl = undefined;
 
-  this.isBusy = false;
-  //endregion
+    this.workers = [];
+    this.siteMapUris = [];
+    this.uriPool = [];
 
-  this.sendMessage = function (message, type) {
-    this.connection.sendText(JSON.stringify({
-      action: 'message',
-      data: {
-        message: message,
-        type: type
-      }
-    }));
-  };
+    this.socketConnection = socketConnection;
 
-  this.sendTransfer = function (transfer) {
-    this.connection.sendText(JSON.stringify({
-      action: 'transfer',
-      data: {
-        transfer: transfer
-      }
-    }));
-  };
+    this.isBusy = false;
+    //endregion
 
-  this.parseUri = function () {
-    var thisSmMaker = this;
-
-    if (this.workers.length < this.countOfWorkers) {
-      console.log('Create new worker');
-      var worker = new Spooky(spookyWorkerOptions, function (error) {
-        if (error) {
-          thisSmMaker.emit('spookyInitError', error);
-        } else {
-          thisSmMaker.emit('parse', {worker: worker});
-        }
-      });
-
-      this.workers.push(worker);
-
-      worker.on('parsed', function (event) {
-        event.uri = this.uri;
-
-        thisSmMaker.emit('parsed', event);
-
-        //var indexOfWorker = thisSmMaker.workers.indexOf(this);
-        //if (indexOfWorker != -1) {
-        //  thisSmMaker.workers.splice(indexOfWorker, 1);
-        //  thisSmMaker.emit('workerFreed');
-        //}
-      });
-      worker.on('workerJobFinish', function () {
-        var indexOfWorker = thisSmMaker.workers.indexOf(this);
-        if (indexOfWorker != -1) {
-          thisSmMaker.workers.splice(indexOfWorker, 1);
-          thisSmMaker.emit('workerFreed');
-
-          console.log('WORKERS COUNT');
-          console.log(thisSmMaker.workers.length);
-        }
-      });
-      worker.on('error', function (e, stack) {
-        console.error(e);
-        if (stack) console.log(stack);
-      });
-      worker.on('console', function (line) {
-        console.log(line);
-      });
-    }
-  };
-
-  this.parse = function (worker, uri) {
-    console.log('>>> PARSING >>>> ' + uri);
-
-    var thisSmMaker = this;
-
-    worker.start(uri);
-    worker.then(function () {
-      this.emit('parsed', {
-        //transfer: this.evaluate(function () {
-        //  return document;
-        //}),
-        title: this.evaluate(function () {
-          return document.title;
-        }),
-        links: this.evaluate(function () {
-          var links = document.getElementsByTagName('a');
-          links = Array.prototype.map.call(links, function (link) {
-            return link.getAttribute('href');
-          });
-          return links;
-        })
-      });
-    });
-    worker.run(function () {
-      this.emit('workerJobFinish');
-    });
-    worker.uri = uri;
-  };
-
-  this.start = function () {
-    if (this.isBusy) {
-      this.connection.sendText(JSON.stringify({
+    this.sendMessage = function (message, type) {
+      logger.verbose('Sending message', message, type);
+      type = type || 'info';
+      this.socketConnection.sendText(JSON.stringify({
         action: 'message',
         data: {
-          message: 'Another action in progress',
-          type: 'error'
+          message: message,
+          type: type
         }
       }));
-    } else {
-      this.isBusy = true;
+    };
 
-      this.urlPool.push(this.targetSiteUri);
-      this.emit('uriPoolAdded', {uri: this.targetSiteUri});
-    }
-  };
+    this.sendTransfer = function (transfer) {
+      this.socketConnection.sendText(JSON.stringify({
+        action: 'transfer',
+        data: {
+          data: transfer
+        }
+      }));
+    };
 
-  this.getUriForParse = function () {
-    if (this.urlPool.length > 0) {
-      return this.urlPool.shift();
-    } else {
-      this.emit('jobComplete');
-    }
-  };
+    this.sendStatus = function (statusObject) {
+      this.socketConnection.sendText(JSON.stringify({
+        action: 'update-status',
+        data: {
+          data: statusObject
+        }
+      }));
+    };
 
-  this.on('workerFreed', function () {
-    this.parseUri();
-  });
+    this.addUriIntoPool = function (uri) {
+      this.uriPool.push(uri);
+      logger.verbose('[uriPoolAdded] event emitted');
+      this.emit('uriPoolAdded', {uri: uri});
+    };
 
-  this.on('uriPoolAdded', function () {
-    this.connection.sendText(JSON.stringify({
-      action: 'message',
-      data: {
-        message: [
-          'Count of workers: ' + this.workers.length,
-          'UrlPoolLength: ' + this.urlPool.length,
-          'Url parsed: ' + this.siteMapUris
-        ].join('; '),
-        type: 'info'
+    this.removeUriFromPool = function (uri) {
+      if (this.uriPool.length == 0) return;
+
+      var indexOfUri = this.uriPool.indexOf(uri);
+
+      if (indexOfUri != -1) {
+        this.uriPool.splice(indexOfUri, 1);
+
+        this.emit('uriPoolRemoved', {uri: uri});
       }
-    }));
+    };
 
-    this.parseUri();
-  });
+    this.addUriIntoSiteMapUris = function (uri) {
+      this.siteMapUris.push(uri);
+    };
 
-  this.on('uriPoolRemoved', function () {
-    if (this.urlPool.length == 0) {
-      this.emit('jobComplete');
-    }
-  });
+    this.filterAndGraceLinks = function (links, previousUri) {
+      var parsedUri = Url.parse(previousUri);
 
-  this.on('jobComplete', function () {
-    this.isBusy = false;
-    this.connection.sendText(JSON.stringify({
-      action: 'message',
-      data: {
-        message: 'Parsed!',
-        type: 'success'
-      }
-    }))
-  });
-
-  this.on('spookyInitError', function (event) {
-    this.connection.sendText(JSON.stringify({
-      action: 'message',
-      data: {
-        message: 'Spooky initialization failed',
-        type: 'warning'
-      }
-    }));
-    this.connection.sendText(JSON.stringify({
-      action: 'transfer',
-      data: {
-        transfer: event
-      }
-    }));
-  });
-
-  /**
-   * event: { worker }
-   */
-  this.on('parse', function (event) {
-    this.parse(event.worker, this.getUriForParse());
-  });
-
-  /**
-   * event: { uri, title, links[] }
-   */
-  this.on('parsed', function (event) {
-    var indexOfUri = this.urlPool.indexOf(event.uri);
-    if (~indexOfUri) {
-      this.urlPool.splice(indexOfUri, 1);
-      this.emit('uriPoolRemoved');
-    }
-
-    this.siteMapUris.push(event.uri);
-
-    //console.log(event.links);
-
-    if (event.links && event.links.length) {
-      var parsedUri = Url.parse(event.uri);
-
-      var links = _
-        .map(event.links, function (link) {
-          //console.log(link);
+      var resultUris = _
+        .map(links, function (link) {
           var _l;
           if (link.match(/^https?:\/\//)) {
-            //console.log('Full link');
             return link;
           } else if (link.match(/^\//)) {
-            //console.log('Absolute link');
             return parsedUri.protocol + '//' + parsedUri.host + link;
           } else if (link.match(/#/)) {
-            //console.log('Hashed link');
             return parsedUri.protocol + '//' +
               parsedUri.host +
               parsedUri.pathname.replace(/#[^\/]*$/, '') + link;
           } else {
-            //console.log('Relative link');
             return parsedUri.protocol + '//' +
               parsedUri.host +
               parsedUri.pathname.replace(/\/[^\/]*$/, '/') +
@@ -255,87 +113,230 @@ function SmMaker() {
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
-          return true;
-        })
-        .filter(function (link) {
-          return this.urlPool.indexOf(link) == -1 && this.siteMapUris.indexOf(link) == -1;
+          return this.uriPool.indexOf(link) == -1 && this.siteMapUris.indexOf(link) == -1;
         }, this);
 
-      links = _.uniq(links);
+      return _.uniq(resultUris);
+    };
 
-      _.each(links, function (link) {
-        this.urlPool.push(link);
-        this.emit('uriPoolAdded', {uri: link});
-      }, this);
-    } else {
-      console.log('-------------- LINKS NOT FOUND TRY TO NEXT STEP --------------');
-      this.parseUri();
+    this.addWorkerInWorkerPool = function (worker) {
+      this.workers.push(worker);
+      logger.verbose('Worker added into worker-pool');
+      logger.verbose('Launch worker');
+      worker.end();
+      logger.verbose('[workerAddedIntoPool] event emitted');
+      this.emit('workerAddedIntoPool', {worker: worker});
+    };
+
+    this.removeWorkerFromWorkerPool = function (worker) {
+      if (this.workers.length == 0) return;
+
+      var indexOfWorker = this.workers.indexOf(worker);
+
+      if (indexOfWorker != -1) {
+        this.workers.splice(indexOfWorker, 1);
+        this.emit('freeWorkerPlace', {worker: worker});
+
+        if (this.workers.length < this.countOfActiveWorkers) {
+          this.emit('freeWorkerPlace', {worker: worker});
+        }
+      }
+    };
+
+    //region EventHandlers
+    this.on('jobRun', function () {
+      logger.verbose('[jobRun] event handled');
+      if (this.isBusy) {
+        this.sendMessage('Another action in progress', 'error');
+      } else {
+        this.once('jobComplete', this.jobCompleteHandler);
+        this.sendMessage('Run init', 'info');
+        logger.verbose('Adding uri into poll');
+        this.addUriIntoPool(this.targetSiteUri);
+        this.isBusy = true;
+      }
+    });
+
+    this.jobCompleteHandler = function () {
+      logger.verbose('[jobComplete] event handled');
+      this.isBusy = false;
+      logger.info(this.siteMapUris);
+      this.sendMessage('Job complete!', 'success');
+    };
+
+    this.on('uriPoolAdded', function (event) {
+      /** event: {uri} */
+
+      var that = this;
+
+      logger.verbose('[uriPoolAdded] event handled');
+
+      try {
+        var parsedUri = Url.parse(event.uri);
+      } catch (e) {
+        logger.error(event.uri);
+        throw e;
+      }
+
+      logger.verbose(parsedUri);
+
+      logger.verbose('Make worker..');
+      var httpRequest = http.request({
+        host: parsedUri.hostname,
+        path: parsedUri.path
+      }, function (response) {
+        var data = '';
+
+        response.on('data', function (chunk) {
+          data += chunk;
+        });
+
+        response.on('end', function () {
+          logger.verbose('[dataFetched] event emitted');
+
+          if (response.headers['content-type'].indexOf('text') != -1) {
+            that.emit('dataFetched', {html: data, worker: httpRequest, uri: event.uri});
+          } else {
+            logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
+            logger.warn('>>>', {uri: event.uri});
+          }
+        });
+      });
+
+      logger.verbose('[workerReady] event emitted');
+      this.emit('workerReady', {worker: httpRequest});
+    });
+
+    this.on('uriPoolRemoved', function (event) {
+      /** event: {uri} */
+    });
+
+    this.on('dataFetched', function (event) {
+      /** event {html, worker, uri} */
+      logger.verbose('Adding url to sitemap array');
+      this.addUriIntoSiteMapUris(event.uri);
+      logger.verbose('[dataFetched] event handled');
+
+      var previousUri = event.uri;
+
+      var $ = cheerio.load(event.html);
+
+      links = [];
+
+      $('a[href]').map(function (index, element) {
+        links.push($(element).attr('href'));
+      });
+
+
+      if (links && links.length) {
+        var newUris = this.filterAndGraceLinks(links, previousUri);
+
+        logger.verbose('Collected ' + newUris.length + 'new URIs');
+
+        _.each(newUris, function (uri) {
+          this.addUriIntoPool(uri);
+        }, this);
+      } else {
+        logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+      }
+
+      logger.verbose('Removing worker');
+      this.removeWorkerFromWorkerPool(event.worker);
+      logger.verbose('Removing uri from pool', event.uri);
+      this.removeUriFromPool(event.uri);
+    });
+
+    this.on('workerReady', function (event) {
+      /** event {worker} */
+
+      if (this.workers.length < this.countOfWorkers) {
+        logger.verbose('Adding worker into worker-pool');
+        this.addWorkerInWorkerPool(event.worker);
+      } else {
+        logger.verbose('Pool is full. Adding once listener for [workerRemovedFromPool]');
+        this.once('freeWorkerPlace', function () {
+          logger.verbose('[freeWorkerPlace] event handled');
+          this.addWorkerInWorkerPool(event.worker);
+        });
+      }
+    });
+
+    this.on('sendStatus', function () {
+      this.sendStatus({
+        countOfActiveWorkers: this.workers.length,
+        urisInPool: this.uriPool.length,
+        urisParsed: this.siteMapUris.length,
+        isBusy: this.isBusy
+      });
+    });
+    //endregion
+
+    //region Send status emitting
+    function emitSendStatus() {
+      this.emit('sendStatus');
     }
 
-    //console.log(links);
-  });
-}
+    this.on('jobRun', emitSendStatus);
+    this.on('jobComplete', emitSendStatus);
+    this.on('uriPoolAdded', emitSendStatus);
+    this.on('uriPoolRemoved', emitSendStatus);
+    this.on('dataFetched', emitSendStatus);
+    this.on('workerReady', emitSendStatus);
+    this.on('workerAddedIntoPool', emitSendStatus);
+    this.on('workerRemovedFromPool', emitSendStatus);
+    this.on('run', emitSendStatus);
+    this.on('interrupt', emitSendStatus);
+    this.on('getStatus', emitSendStatus);
+    //endregion
 
-/**
- * Client events:
- *    message: {
- *      action: 'message',
- *      data: {
- *        message: 'Some message',
- *        type: 'warning|info|success|error
- *      }
- *    }
- */
+    //region Client Triggers
+    this.on('run', function (event) {
+      extend(this, event.data);
 
-util.inherits(SmMaker, EventEmitter);
+      logger.verbose('[jobRun] event emitted');
+      this.emit('jobRun');
+    });
 
-var smMaker = new SmMaker();
-smMaker.setMaxListeners(100);
+    this.on('interrupt', function (event) {
+      this.sendMessage('Job interrupted', 'info');
+      logger.verbose('Interrupt event');
+    });
 
-smMaker.on('run', function (event) {
-  event.connection.sendText(JSON.stringify({
-    action: 'message',
-    data: {
-      message: 'Run init',
-      type: 'info'
-    }
-  }));
-  extend(this, event.data);
-  this.connection = event.connection;
-  this.start();
-});
+    this.on('getStatus', function (event) {
+      this.sendMessage('Status will return', 'success');
+      logger.verbose('Get status event');
+      logger.verbose('[sendStatus] event emitted');
+      this.emit('sendStatus');
+    });
 
-smMaker.on('interrupt', function (event) {
-  event.connection.sendText(JSON.stringify({
-    action: 'message',
-    data: {
-      message: 'Job interrupted',
-      type: 'info'
-    }
-  }));
-  console.log('Interrupt event');
-});
+    this.on('socket-disconnected', function () {
+      logger.verbose('[socket-disconnected] event handled');
+      clearTimeout(this.timer);
+    });
 
-smMaker.on('getStatus', function (event) {
-  event.connection.sendText(JSON.stringify({
-    action: 'message',
-    data: {
-      message: 'Status returned',
-      type: 'success'
-    }
-  }));
-  console.log('Get status event');
-});
+    this.on('jobRun', function () {
+      logger.verbose('[jobRun] event handled');
+      logger.verbose('Starting timer for checking job status complete');
+      setTimeout(function run() {
+        logger.info('Try to check is job complete');
 
-smMaker.on('*', function () {
-  console.log('>>> * Event >>>');
-});
+        if (this.isBusy &&
+          this.workers.length == 0 &&
+          this.uriPool.length == 0 &&
+          this.siteMapUris.length > 0) {
 
-setInterval(function () {
-  console.log('>>>> TIMER:');
-  console.log('Workers: ' + smMaker.workers.length);
-  console.log('Pool: ' + smMaker.urlPool.length);
-  console.log('Parsed: ' + smMaker.siteMapUris.length);
-}, 1000);
+          this.emit('jobComplete');
+        } else {
+          this.timer = setTimeout(run.bind(this), 2000);
+        }
+      }.bind(this), 2000);
+    });
+    //endregion
 
-module.exports = smMaker;
+    this.timer = undefined;
+  }
+
+  util.inherits(SmMaker, EventEmitter);
+
+  return SmMaker;
+};

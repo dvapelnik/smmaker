@@ -1,34 +1,31 @@
 (function (angular, validator) {
-  angular.module('smmaker', ['angular-growl', 'angular-validator'])
+  angular.module('smmaker', ['angular-growl', 'angular-validator', 'ngWebSocket'])
     .config(['growlProvider', function (growlProvider) {
       growlProvider.globalReversedOrder(true);
       growlProvider.globalTimeToLive(5000);
     }])
-    .controller('MainController', function ($scope, WebSocketFactory, growl, validateForm) {
-      var wsLink = 'ws://localhost:30000';
-      var wsEventHandlers = {
-        onopen: function () {
-          addNewMessage('Opened');
-        },
-        onmessage: function (event) {
-          var eventData = JSON.parse(event.data);
+    .controller('MainController', function ($scope, $websocket, growl, validateForm) {
 
-          $scope.$broadcast(eventData.action, eventData.data);
-        },
-        onerror: function () {
-          addNewMessage('Error occurred');
-          setTimeout(function () {
-            socket = WebSocketFactory.create(wsLink, wsEventHandlers)
-          }, 500);
-        },
-        onclose: function () {
-          addNewMessage('Socket closed. Trying to reconnect');
-          setTimeout(function () {
-            socket = WebSocketFactory.create(wsLink, wsEventHandlers)
-          }, 500);
-        }
-      };
-      var socket = WebSocketFactory.create(wsLink, wsEventHandlers);
+      //region WebSocket
+      var socket = $websocket('ws://localhost:30000');
+      socket.onMessage(function (message) {
+        var eventData = JSON.parse(message.data);
+
+        $scope.$broadcast(eventData.action, eventData.data);
+      });
+      socket.onOpen(function () {
+        $scope.socketIsConnected = true;
+        $scope.$apply();
+      });
+      socket.onClose(function () {
+        $scope.socketIsConnected = false;
+        $scope.$apply();
+      });
+      socket.onError(function () {
+        addNewMessage('Socket connection error occurred');
+      });
+      $scope.socketIsConnected = false;
+      //endregion
 
       $scope.$on('message', function (event, data) {
         growl[data.type](data.message);
@@ -38,8 +35,19 @@
         growl.warning('Data transfered');
         console.log(data.data);
       });
+      $scope.$on('update-status', function (event, data) {
+        console.log(data.data);
+        $scope.jobStatus = data.data;
+      });
 
       $scope.messages = [];
+
+      $scope.jobStatus = {
+        countOfActiveWorkers: 0,
+        urisInPool: 0,
+        urisParsed: 0,
+        isBusy: false
+      };
 
       $scope.chageFreqOptions = [
         {value: 'auto', label: 'Auto'},
@@ -54,7 +62,8 @@
 
       function getInitialFormState() {
         return {
-          targetSiteUri: 'http://pmg17.vn.ua',
+          targetSiteUri: 'http://just-try-another.blogspot.nl/',
+          //targetSiteUri: 'http://pmg17.vn.ua',
           maxDepth: 2,
           countOfWorkers: 2,
           changefreq: $scope.chageFreqOptions[0],
@@ -99,18 +108,8 @@
         $scope.messages.push(message);
         $scope.$apply();
       }
-    })
-    .factory('WebSocketFactory', function () {
-      return {
-        socket: undefined,
-        create: function (link, eventHandlers) {
-          var socket = new WebSocket(link);
 
-          angular.extend(socket, eventHandlers);
 
-          return socket;
-        }
-      }
     })
     .filter('reverse', function () {
       return function (items) {

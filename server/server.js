@@ -1,24 +1,72 @@
 #!/usr/bin/env node
 
+
+var winston = require('winston');
+var logger = new (winston.Logger)({
+  transports: [
+    //new (winston.transports.Console)({
+    //  name: 'console-verbose',
+    //  level: 'verbose',
+    //  colorize: true
+    //}),
+    new (winston.transports.Console)({
+      name: 'console-info',
+      level: 'info',
+      colorize: true,
+      enabled: false
+    }),
+    new (winston.transports.Console)({
+      name: 'console-debug',
+      level: 'debug',
+      colorize: true
+    }),
+    new (winston.transports.Console)({
+      name: 'console-warn',
+      level: 'warn',
+      colorize: true
+    }),
+    new (winston.transports.Console)({
+      name: 'console-error',
+      level: 'error',
+      colorize: true
+    }),
+    new (winston.transports.File)({
+      name: 'file',
+      filename: 'log/debug.log',
+      level: 'debug,error,warn',
+      json: true
+    })
+  ]
+});
+
 var ws = require('nodejs-websocket');
-var validator = require('validator');
-var smMaker = require('./SmMaker');
+var SmMaker = require('./SmMaker')({
+  logger: logger
+});
 
 var server = ws.createServer(function (conn) {
+  conn.smMaker = new SmMaker(conn);
+
   conn.on('text', function (message) {
     var messageData = JSON.parse(message);
 
-    smMaker.emit(messageData.action, {
-      connection: conn,
+    conn.smMaker.emit(messageData.action, {
       data: messageData.data
     });
   });
 
   conn.on('close', function (code, reason) {
-    console.log('Disconnected');
+    logger.info('<<< Disconnected');
+    logger.verbose('[socket-disconnected] event emitted');
+    this.smMaker.emit('socket-disconnected');
   });
-}).listen(3000);
-
-server.on('connection', function () {
-  console.log('Connected');
+}).on('connection', function (conn) {
+  logger.info('>>> Connected');
+}).listen(3000, function () {
+  logger.verbose('WebSocket server started');
 });
+
+//server.on('connection', function (conn) {
+//  logger.info('>>> Connected');
+//});
+

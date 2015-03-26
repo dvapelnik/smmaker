@@ -26,6 +26,8 @@
     "ngprogress": "~1.0.7",
     "sockjs-client": "~0.3.4",
     "angular-growl-v2": "~0.7.3",
-    "validator-js": "~3.35.0"
+    "validator-js": "~3.35.0",
+    "angular-websocket": "~1.0.9",
+    "components-font-awesome": "~4.3.0"
   }
 }

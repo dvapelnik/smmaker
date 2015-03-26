@@ -6,11 +6,14 @@
 
     <script type="text/javascript" src="bower/angular/angular.js"></script>
     <script type="text/javascript" src="bower/ngprogress/build/ngProgress.js"></script>
+    <script type="text/javascript" src="bower/angular-websocket/dist/angular-websocket.min.js"></script>
 
     <script type="text/javascript" src="bower/angular-growl-v2/build/angular-growl.min.js"></script>
     <link rel="stylesheet" href="bower/angular-growl-v2/build/angular-growl.min.css"/>
 
     <link rel="stylesheet" href="bower/bootstrap/dist/css/bootstrap.css"/>
+
+    <link rel="stylesheet" href="bower/components-font-awesome/css/font-awesome.min.css"/>
 
     <script type="text/javascript" src="bower/validator-js/validator.min.js"></script>
 
@@ -31,10 +34,9 @@
         <div class="row" ng-controller="MainController">
             <div growl></div>
             <div class="row">
-                <div class="col-md-6 col-md-offset-3">
-                    <h1 style="text-align: center;">
-                        Sitemap generator
-                    </h1>
+                <div class="col-md-6 col-md-offset-3" style="text-align: center">
+                    <h1> Sitemap generator </h1>
+                    <h4>WebSocket <i class="fa" ng-class="{'fa-heart': socketIsConnected, 'fa-heart-o': !socketIsConnected}"></i> {{socketIsConnected ? 'connected':'disconnected'}}</h4>
                     <hr/>
                 </div>
             </div>
@@ -124,6 +126,32 @@
                     </form>
                 </div>
                 <div class="col-md-6">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <label>Job Status</label>
+                        </div>
+                        <div class="col-md-4 pull-right text-right">
+                            <span ng-show="jobStatus.isBusy">Job in progress</span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <table class="table table-bordered">
+                                <tr>
+                                    <td>Active workers</td>
+                                    <td>{{jobStatus.countOfActiveWorkers}}</td>
+                                </tr>
+                                <tr>
+                                    <td>Count of URI in queue</td>
+                                    <td>{{jobStatus.urisInPool}}</td>
+                                </tr>
+                                <tr>
+                                    <td>Count of parsed URI</td>
+                                    <td>{{jobStatus.urisParsed}}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
                     <div>
                         <p ng-repeat="message in messages | reverse | limitTo:10 track by $index">{{message}}</p>
                     </div>
