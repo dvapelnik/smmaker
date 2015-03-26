@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Sitemap maker</title>
+
+    <script type="text/javascript" src="bower/angular/angular.js"></script>
+    <script type="text/javascript" src="bower/ngprogress/build/ngProgress.js"></script>
+
+    <script type="text/javascript" src="bower/angular-growl-v2/build/angular-growl.min.js"></script>
+    <link rel="stylesheet" href="bower/angular-growl-v2/build/angular-growl.min.css"/>
+
+    <link rel="stylesheet" href="bower/bootstrap/dist/css/bootstrap.css"/>
+
+    <script type="text/javascript" src="bower/validator-js/validator.min.js"></script>
+
+    <script type="text/javascript" src="js/ng-app.js"></script>
+</head>
+<body>
+<div class="container" ng-app="smmaker">
+    <div class="container-fluid" style="margin-top: 20px;">
+        <nav class="navbar navbar-inverse">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="/">
+                        Sitemap generator
+                    </a>
+                </div>
+            </div>
+        </nav>
+        <div class="row" ng-controller="MainController">
+            <div growl></div>
+            <div class="row">
+                <div class="col-md-6 col-md-offset-3">
+                    <h1 style="text-align: center;">
+                        Sitemap generator
+                    </h1>
+                    <hr/>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <form>
+                        <div class="form-group">
+                            <label for="targetSiteUri">Target site URI</label>
+                            <input
+                                    type="text"
+                                    class="form-control"
+                                    id="targetSiteUri"
+                                    ng-model="form.targetSiteUri"
+                                    placeholder="http://uawebchallenge.com">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="maxDepth">Max Depth URI</label>
+                                    <input
+                                            type="number"
+                                            class="form-control"
+                                            id="maxDepth"
+                                            ng-model="form.maxDepth"
+                                            placeholder="2"/>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="countOfWorkers">Count of workers</label>
+                                    <input
+                                            type="number"
+                                            class="form-control"
+                                            id="countOfWorkers"
+                                            ng-model="form.countOfWorkers"
+                                            placeholder="2"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="changefreq">Change frequency</label>
+                                    <select
+                                            id="changefreq"
+                                            class="form-control"
+                                            ng-model="form.changefreq"
+                                            ng-options="opt as opt.label for opt in chageFreqOptions"></select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="maxCountOfUrl">Url max count in sitemap</label>
+                                    <input
+                                            type="number"
+                                            class="form-control"
+                                            id="maxCountOfUrl"
+                                            ng-model="form.maxCountOfUrl"
+                                            placeholder="100"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" ng-model="form.evaluatePriority"/>
+                                        Evaluate priority
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: center">
+                            <button class="btn btn-warning" style="font-weight: bold" ng-click="clearForm()">
+                                Clear form
+                            </button>
+                            <button class="btn btn-danger" style="font-weight: bold" ng-click="interrupt()">
+                                Interrupt
+                            </button>
+                            <button class="btn btn-success" style="font-weight: bold" ng-click="run()">
+                                Run!
+                            </button>
+                            <button class="btn btn-default" style="font-weight: bold" ng-click="getStatus()">
+                                Get status
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-6">
+                    <div>
+                        <p ng-repeat="message in messages | reverse | limitTo:10 track by $index">{{message}}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
