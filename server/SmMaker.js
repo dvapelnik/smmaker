@@ -105,6 +105,8 @@ module.exports = function (options) {
           var _l;
           if (link.match(/^https?:\/\//)) {
             return link;
+          } else if (link.match(/^(\/){2}/)) {
+            return parsedUri.protocol + link;
           } else if (link.match(/^\//)) {
             return parsedUri.protocol + '//' + parsedUri.host + link;
           } else if (link.match(/#/)) {
