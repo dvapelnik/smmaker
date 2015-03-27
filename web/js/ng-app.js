@@ -19,10 +19,12 @@
       });
       socket.onClose(function () {
         $scope.socketIsConnected = false;
+        growl.error('Socket connection closed<br>Try to refresh page');
         $scope.$apply();
       });
       socket.onError(function () {
-        addNewMessage('Socket connection error occurred');
+        addNewMessage('Socket connection error occurred<br>Try to refresh page');
+        growl.warn('Socket connection error');
       });
       $scope.socketIsConnected = false;
       //endregion
