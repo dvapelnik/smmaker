@@ -60,6 +60,12 @@ var server = ws.createServer(function (conn) {
     logger.verbose('[socket-disconnected] event emitted');
     this.smMaker.emit('socket-disconnected');
   });
+
+  conn.on('error', function (error) {
+    logger.error(error);
+  })
+}).on('error', function (error) {
+  logger.error(error);
 }).on('connection', function (conn) {
   logger.info('>>> Connected');
 }).listen(3000, function () {

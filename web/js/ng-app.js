@@ -36,7 +36,6 @@
         console.log(data.data);
       });
       $scope.$on('update-status', function (event, data) {
-        console.log(data.data);
         $scope.jobStatus = data.data;
       });
 

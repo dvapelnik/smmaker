@@ -138,7 +138,7 @@ module.exports = function (options) {
         this.emit('freeWorkerPlace', {worker: worker});
 
         if (this.workers.length < this.countOfActiveWorkers) {
-          this.emit('freeWorkerPlace', {worker: worker});
+          this.emit('freeWorkerPlace');
         }
       }
     };
