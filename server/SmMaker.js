@@ -84,6 +84,15 @@ module.exports = function (options) {
       }
     };
 
+    this.getUriFromPool = function () {
+      var filteredUriPool = _.filter(this.uriPool, function (uri) {
+        return this.siteMapUris.indexOf(uri) == -1 &&
+          _.pluck(this.workers, 'uri').indexOf(uri) == -1;
+      }, this);
+
+      return filteredUriPool.length > 0 ? filteredUriPool[0] : undefined;
+    };
+
     this.addUriIntoSiteMapUris = function (uri) {
       this.siteMapUris.push(uri);
     };
@@ -113,7 +122,9 @@ module.exports = function (options) {
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
-          return this.uriPool.indexOf(link) == -1 && this.siteMapUris.indexOf(link) == -1;
+          return this.uriPool.indexOf(link) == -1 &&
+            this.siteMapUris.indexOf(link) == -1 &&
+            _.pluck(this.workers, 'uri').indexOf(link) == -1;
         }, this);
 
       return _.uniq(resultUris);
@@ -122,24 +133,26 @@ module.exports = function (options) {
     this.addWorkerInWorkerPool = function (worker) {
       this.workers.push(worker);
       logger.verbose('Worker added into worker-pool');
-      logger.verbose('Launch worker');
-      worker.end();
       logger.verbose('[workerAddedIntoPool] event emitted');
       this.emit('workerAddedIntoPool', {worker: worker});
     };
 
     this.removeWorkerFromWorkerPool = function (worker) {
-      if (this.workers.length == 0) return;
+      if (this.workers.length == 0) {
+        logger.info('Worker pool is empty');
+        return;
+      }
 
       var indexOfWorker = this.workers.indexOf(worker);
 
+      logger.info('Index of worker in array: ', indexOfWorker);
+
       if (indexOfWorker != -1) {
         this.workers.splice(indexOfWorker, 1);
-        this.emit('freeWorkerPlace', {worker: worker});
-
-        if (this.workers.length < this.countOfActiveWorkers) {
-          this.emit('freeWorkerPlace');
-        }
+        logger.verbose('[workerRemovedFromWorkerPool] event emitted');
+        this.emit('workerRemovedFromWorkerPool');
+      } else {
+        logger.verbose('Worker not found in workers pool');
       }
     };
 
@@ -153,6 +166,8 @@ module.exports = function (options) {
         this.sendMessage('Run init', 'info');
         logger.verbose('Adding uri into poll');
         this.addUriIntoPool(this.targetSiteUri);
+        logger.verbose('[workerRemovedFromWorkerPool] event synthetically emitted');
+        this.emit('workerRemovedFromWorkerPool');
         this.isBusy = true;
       }
     });
@@ -164,80 +179,38 @@ module.exports = function (options) {
       this.sendMessage('Job complete!', 'success');
     };
 
-    this.on('uriPoolAdded', function (event) {
-      /** event: {uri} */
-
-      var that = this;
-
-      logger.verbose('[uriPoolAdded] event handled');
-
-      try {
-        var parsedUri = Url.parse(event.uri);
-      } catch (e) {
-        logger.error(event.uri);
-        throw e;
-      }
-
-      logger.verbose(parsedUri);
-
-      logger.verbose('Make worker..');
-      var httpRequest = http.request({
-        host: parsedUri.hostname,
-        path: parsedUri.path
-      }, function (response) {
-        var data = '';
-
-        response.on('data', function (chunk) {
-          data += chunk;
-        });
-
-        response.on('end', function () {
-          logger.verbose('[dataFetched] event emitted');
-
-          if (response.headers['content-type'].indexOf('text') != -1) {
-            that.emit('dataFetched', {html: data, worker: httpRequest, uri: event.uri});
-          } else {
-            logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
-            logger.warn('>>>', {uri: event.uri});
-          }
-        });
-      });
-
-      logger.verbose('[workerReady] event emitted');
-      this.emit('workerReady', {worker: httpRequest});
-    });
-
-    this.on('uriPoolRemoved', function (event) {
-      /** event: {uri} */
-    });
-
     this.on('dataFetched', function (event) {
-      /** event {html, worker, uri} */
+      /** event {html, worker, uri, responseIsCorrect} */
       logger.verbose('Adding url to sitemap array');
       this.addUriIntoSiteMapUris(event.uri);
       logger.verbose('[dataFetched] event handled');
 
-      var previousUri = event.uri;
+      logger.verbose('Removing parsed uri from uri pool');
+      this.removeUriFromPool(event.uri);
 
-      var $ = cheerio.load(event.html);
+      if (event.responseIsCorrect) {
+        var previousUri = event.uri;
 
-      links = [];
+        var $ = cheerio.load(event.html);
 
-      $('a[href]').map(function (index, element) {
-        links.push($(element).attr('href'));
-      });
+        links = [];
+
+        $('a[href]').map(function (index, element) {
+          links.push($(element).attr('href'));
+        });
 
 
-      if (links && links.length) {
-        var newUris = this.filterAndGraceLinks(links, previousUri);
+        if (links && links.length) {
+          var newUris = this.filterAndGraceLinks(links, previousUri);
 
-        logger.verbose('Collected ' + newUris.length + 'new URIs');
+          logger.verbose('Collected ' + newUris.length + 'new URIs');
 
-        _.each(newUris, function (uri) {
-          this.addUriIntoPool(uri);
-        }, this);
-      } else {
-        logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+          _.each(newUris, function (uri) {
+            this.addUriIntoPool(uri);
+          }, this);
+        } else {
+          logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+        }
       }
 
       logger.verbose('Removing worker');
@@ -246,19 +219,48 @@ module.exports = function (options) {
       this.removeUriFromPool(event.uri);
     });
 
-    this.on('workerReady', function (event) {
-      /** event {worker} */
+    this.on('workerRemovedFromWorkerPool', function () {
+      var that = this;
 
-      if (this.workers.length < this.countOfWorkers) {
-        logger.verbose('Adding worker into worker-pool');
-        this.addWorkerInWorkerPool(event.worker);
-      } else {
-        logger.verbose('Pool is full. Adding once listener for [workerRemovedFromPool]');
-        this.once('freeWorkerPlace', function () {
-          logger.verbose('[freeWorkerPlace] event handled');
-          this.addWorkerInWorkerPool(event.worker);
-        });
-      }
+      var countOfFreeWorkerPlaces = this.countOfWorkers - this.workers.length;
+
+      _.times(Math.min(countOfFreeWorkerPlaces, this.uriPool.length), function () {
+        var uri = this.getUriFromPool();
+
+        if (uri) {
+          var parsedUri = Url.parse(uri);
+
+          logger.info(parsedUri);
+
+          logger.verbose('Make worker..');
+          var httpRequest = http.request({
+            host: parsedUri.hostname,
+            path: parsedUri.path
+          }, function (response) {
+            var data = '';
+
+            response.on('data', function (chunk) {
+              data += chunk;
+            });
+
+            response.on('end', function () {
+              if (response.headers['content-type'].indexOf('text') != -1) {
+                logger.verbose('[dataFetched] event emitted');
+                that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri, responseIsCorrect: true});
+              } else {
+                logger.verbose('[dataFetched] event emitted with wrong response');
+                logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
+                logger.warn('>>>', {uri: uri});
+                that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri});
+              }
+            });
+          });
+          httpRequest.uri = uri;
+
+          httpRequest.end();
+          that.addWorkerInWorkerPool(httpRequest);
+        }
+      }, this);
     });
 
     this.on('sendStatus', function () {
@@ -291,7 +293,16 @@ module.exports = function (options) {
 
     //region Client Triggers
     this.on('run', function (event) {
-      extend(this, event.data);
+
+      extend(this, {
+        targetSiteUri: event.data.targetSiteUri,
+        maxDepth: +event.data.maxDepth,
+        countOfWorkers: +event.data.countOfWorkers,
+        changeFreq: event.data.changeFreq,
+        evaluatePriority: event.data.evaluatePriority,
+        maxCountOfUrl: +event.data.maxCountOfUrl
+      });
+      //extend(this, event.data);
 
       logger.verbose('[jobRun] event emitted');
       this.emit('jobRun');

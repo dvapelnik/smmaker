@@ -9,12 +9,12 @@ var logger = new (winston.Logger)({
     //  level: 'verbose',
     //  colorize: true
     //}),
-    new (winston.transports.Console)({
-      name: 'console-info',
-      level: 'info',
-      colorize: true,
-      enabled: false
-    }),
+    //new (winston.transports.Console)({
+    //  name: 'console-info',
+    //  level: 'info',
+    //  colorize: true,
+    //  enabled: false
+    //}),
     new (winston.transports.Console)({
       name: 'console-debug',
       level: 'debug',
@@ -29,12 +29,6 @@ var logger = new (winston.Logger)({
       name: 'console-error',
       level: 'error',
       colorize: true
-    }),
-    new (winston.transports.File)({
-      name: 'file',
-      filename: 'log/debug.log',
-      level: 'debug,error,warn',
-      json: true
     })
   ]
 });
@@ -71,8 +65,3 @@ var server = ws.createServer(function (conn) {
 }).listen(3000, function () {
   logger.verbose('WebSocket server started');
 });
-
-//server.on('connection', function (conn) {
-//  logger.info('>>> Connected');
-//});
-

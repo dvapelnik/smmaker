@@ -48,6 +48,17 @@
         isBusy: false
       };
 
+      $scope.getJobStatusObject = function () {
+        var preparedCountUrisInQueue = $scope.jobStatus.urisInPool - $scope.jobStatus.countOfActiveWorkers;
+
+        return {
+          countOfActiveWorkers: $scope.jobStatus.countOfActiveWorkers,
+          countUrisInQueue: preparedCountUrisInQueue < 0 ? 0 : preparedCountUrisInQueue,
+          urisParsed: $scope.jobStatus.urisParsed,
+          isBusy: $scope.jobStatus.isBusy
+        }
+      };
+
       $scope.chageFreqOptions = [
         {value: 'auto', label: 'Auto'},
         {value: 'always', label: 'Always'},
