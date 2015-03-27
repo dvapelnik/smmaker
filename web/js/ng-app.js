@@ -19,10 +19,12 @@
       });
       socket.onClose(function () {
         $scope.socketIsConnected = false;
+        growl.error('Socket connection closed<br>Try to refresh page');
         $scope.$apply();
       });
       socket.onError(function () {
-        addNewMessage('Socket connection error occurred');
+        addNewMessage('Socket connection error occurred<br>Try to refresh page');
+        growl.warn('Socket connection error');
       });
       $scope.socketIsConnected = false;
       //endregion
@@ -46,6 +48,17 @@
         urisInPool: 0,
         urisParsed: 0,
         isBusy: false
+      };
+
+      $scope.getJobStatusObject = function () {
+        var preparedCountUrisInQueue = $scope.jobStatus.urisInPool - $scope.jobStatus.countOfActiveWorkers;
+
+        return {
+          countOfActiveWorkers: $scope.jobStatus.countOfActiveWorkers,
+          countUrisInQueue: preparedCountUrisInQueue < 0 ? 0 : preparedCountUrisInQueue,
+          urisParsed: $scope.jobStatus.urisParsed,
+          isBusy: $scope.jobStatus.isBusy
+        }
       };
 
       $scope.chageFreqOptions = [

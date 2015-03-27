@@ -36,7 +36,9 @@
             <div class="row">
                 <div class="col-md-6 col-md-offset-3" style="text-align: center">
                     <h1> Sitemap generator </h1>
-                    <h4>WebSocket <i class="fa" ng-class="{'fa-heart': socketIsConnected, 'fa-heart-o': !socketIsConnected}"></i> {{socketIsConnected ? 'connected':'disconnected'}}</h4>
+                    <h4>WebSocket <i class="fa"
+                                     ng-class="{'fa-heart': socketIsConnected, 'fa-heart-o': !socketIsConnected}"></i>
+                        {{socketIsConnected ? 'connected':'disconnected'}}</h4>
                     <hr/>
                 </div>
             </div>
@@ -139,15 +141,15 @@
                             <table class="table table-bordered">
                                 <tr>
                                     <td>Active workers</td>
-                                    <td>{{jobStatus.countOfActiveWorkers}}</td>
+                                    <td>{{getJobStatusObject().countOfActiveWorkers}}</td>
                                 </tr>
                                 <tr>
                                     <td>Count of URI in queue</td>
-                                    <td>{{jobStatus.urisInPool}}</td>
+                                    <td>{{getJobStatusObject().countUrisInQueue}}</td>
                                 </tr>
                                 <tr>
                                     <td>Count of parsed URI</td>
-                                    <td>{{jobStatus.urisParsed}}</td>
+                                    <td>{{getJobStatusObject().urisParsed}}</td>
                                 </tr>
                             </table>
                         </div>
