@@ -228,11 +228,14 @@ module.exports = function (options) {
       }
     };
 
-    this.clearPoolArrays = function () {
+    this.clearPoolArrays = function (withSiteMapUris) {
       logger.verbose('Resetting all pools');
       this.workers = [];
       this.uriPool = [];
-      this.siteMapUris = [];
+
+      if (withSiteMapUris) {
+        this.siteMapUris = [];
+      }
     };
 
     this.getByteLengthLimit = function () {
@@ -330,6 +333,7 @@ module.exports = function (options) {
         this.sendMessage('Another action in progress', 'error');
       } else {
         this.once('jobComplete', this.jobCompleteHandler);
+        this.clearPoolArrays(true);
         this.sendMessage('Run init', 'info');
         logger.verbose('Adding uri into poll');
         this.addUriIntoPool(new Uri(this.targetSiteUri, 1));
