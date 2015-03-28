@@ -243,6 +243,17 @@ module.exports = function (options) {
       return 8 * string.length;
     };
 
+    this.getCurrentDateString = function () {
+      var now = new Date();
+      var curr_date = now.getDate();
+      var curr_month = now.getMonth() + 1;
+      var curr_year = now.getFullYear();
+
+      return curr_year + "-" +
+        (curr_month < 10 ? ('0' + curr_month) : curr_month) + "-" +
+        (curr_date < 10 ? ('0' + curr_date) : curr_date);
+    };
+
     /**
      * <?xml version="1.0" encoding="UTF-8"?>
      * <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -264,15 +275,7 @@ module.exports = function (options) {
 
       xml.attribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
 
-      var now = new Date();
-      var curr_date = now.getDate();
-      var curr_month = now.getMonth() + 1;
-      var curr_year = now.getFullYear();
-
-      var dateString =
-        curr_year + "-" +
-        (curr_month < 10 ? ('0' + curr_month) : curr_month) + "-" +
-        (curr_date < 10 ? ('0' + curr_date) : curr_date);
+      var dateString = this.getCurrentDateString();
 
       _.each(uriArray, function (uri) {
         var url = xml.ele('url');
@@ -282,6 +285,38 @@ module.exports = function (options) {
         url.ele('lastmod', {}, dateString);
         url.ele('changefreq', {}, this.changeFreq);
         url.ele('priority', {}, (1 / uri.level).toString().substr(0, 3));
+      }, this);
+
+      return xml.end({pretty: true}).toString();
+    };
+
+    /**
+     * <?xml version="1.0" encoding="UTF-8"?>
+     * <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+     *    <sitemap>
+     *       <loc>http://www.example.com/sitemap1.xml.gz</loc>
+     *       <lastmod>2004-10-01T18:23:17+00:00</lastmod>
+     *    </sitemap>
+     *    <sitemap>
+     *       <loc>http://www.example.com/sitemap2.xml.gz</loc>
+     *       <lastmod>2005-01-01</lastmod>
+     *    </sitemap>
+     * </sitemapindex>
+     * @param sitemapList
+     */
+    this.makeXmlPartedSiteMapString = function (sitemapList) {
+      xml = builder.create('sitemapindex', {
+        version: '1.0', encoding: 'UTF-8'
+      });
+
+      xml.attribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+
+      var dateString = this.getCurrentDateString();
+
+      _.each(sitemapList, function (sitemap) {
+        var sitemapEle = xml.ele('sitemapEle');
+        sitemapEle.ele('loc', {}, this.targetSiteUri.replace(/\/?$/, '/') + sitemap);
+        sitemapEle.ele('lastmod', {}, dateString);
       }, this);
 
       return xml.end({pretty: true}).toString();
@@ -361,10 +396,10 @@ module.exports = function (options) {
 
       logger.info(this.retrieveType);
 
+      var currentUnixTimestamp = Date.now().toString();
+
       async.waterfall([
         function (callback) {
-
-          var currentUnixTimestamp = Date.now().toString();
           fs.mkdir('web/sitemaps/' + currentUnixTimestamp, 0775, function (error) {
             if (error) {
               callback(error);
@@ -386,6 +421,63 @@ module.exports = function (options) {
                   callback(null, currentUnixTimestamp);
                 }
               });
+          } else {
+            var pagesCount = Math.max(
+              Math.ceil(
+                that.siteMapUris.length / (that.siteMapUris.length < that.uriCountLimitPerFile ?
+                  that.siteMapUris.length :
+                  that.uriCountLimitPerFile)
+              ),
+              Math.ceil(
+                that.getByteLengthOfString(xml) / (that.getByteLengthOfString(xml) < that.getByteLengthLimit() ?
+                  that.getByteLengthOfString(xml) :
+                  that.getByteLengthLimit()
+                )));
+
+            logger.info('Pages count', pagesCount);
+
+            var itemsPerPage = Math.ceil(that.siteMapUris.length / pagesCount);
+            logger.info('Items per page', itemsPerPage);
+
+            var siteMapChunks = [];
+
+            _siteMapUris = that.siteMapUris.slice();
+            logger.verbose(_siteMapUris);
+
+            for (var i = 0, j = _siteMapUris.length; i < j; i += itemsPerPage) {
+              siteMapChunks.push(_siteMapUris.slice(i, i + itemsPerPage));
+            }
+
+            async.times(pagesCount, function (n, timesCallback) {
+              fs.writeFile(
+                'web/sitemaps/' + currentUnixTimestamp + '/sitemap' + (n + 1) + '.xml',
+                that.makeXmlString(siteMapChunks[n]),
+                function (error) {
+                  if (error) {
+                    timesCallback(error);
+                  } else {
+                    timesCallback(null, n + 1);
+                  }
+                }
+              )
+            }, function (error, results) {
+              if (error) {
+                callback(error);
+              } else {
+                fs.writeFile(
+                  'web/sitemaps/' + currentUnixTimestamp + '/sitemap.xml',
+                  that.makeXmlPartedSiteMapString(_.map(results, function (n) {
+                    return 'sitemap' + n + '.xml';
+                  })),
+                  function (error) {
+                    if (error) {
+                      callback(error);
+                    } else {
+                      callback(null, currentUnixTimestamp);
+                    }
+                  });
+              }
+            });
           }
         }
       ], function (error, result) {
