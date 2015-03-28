@@ -37,7 +37,8 @@
                 <div class="col-md-6 col-md-offset-3" style="text-align: center">
                     <h1> Sitemap generator </h1>
                     <h4>WebSocket <i class="fa"
-                                     ng-class="{'fa-heart': socketIsConnected, 'fa-heart-o': !socketIsConnected}"></i>
+                                     ng-class="{'fa-heart': socketIsConnected, 'fa-heart-o': !socketIsConnected}"
+                                     ng-style="{'color': socketIsConnected ? 'green' : 'red'}"></i>
                         {{socketIsConnected ? 'connected':'disconnected'}}</h4>
                     <hr/>
                 </div>

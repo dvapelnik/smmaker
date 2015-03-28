@@ -89,6 +89,9 @@
       };
       $scope.run = function () {
         if (validateForm($scope.form)) {
+          $scope.siteMapUris = [];
+          $scope.$apply();
+
           socket.send(JSON.stringify({
             action: 'run',
             data: {
@@ -115,10 +118,11 @@
 
       function getInitialFormState() {
         return {
+          //targetSiteUri: 'http://getbootstrap.com/',
           targetSiteUri: 'http://just-try-another.blogspot.nl/',
           //targetSiteUri: 'http://pmg17.vn.ua',
-          maxNestingLevel: 2,
-          countOfWorkers: 2,
+          maxNestingLevel: 3,
+          countOfWorkers: 10,
           changefreq: $scope.chageFreqOptions[2],
           mbLengthLimit: 10,
           uriCountLimitPerFile: 50000,
