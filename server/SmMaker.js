@@ -243,10 +243,17 @@ module.exports = function (options) {
           logger.info(parsedUri);
 
           logger.verbose('Make worker..');
-          var httpRequest = http.request({
+
+          var httpRequestOptions = {
             host: parsedUri.hostname,
             path: parsedUri.path
-          }, function (response) {
+          };
+
+          if(parsedUri.port){
+            httpRequestOptions.port = parsedUri.port;
+          }
+
+          var httpRequest = http.request(httpRequestOptions, function (response) {
             var data = '';
 
             response.on('data', function (chunk) {
@@ -340,6 +347,7 @@ module.exports = function (options) {
     this.on('socket-disconnected', function () {
       logger.verbose('[socket-disconnected] event handled');
     });
+    //endregion
   }
 
   util.inherits(SmMaker, EventEmitter);
