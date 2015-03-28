@@ -38,6 +38,7 @@ module.exports = function (options) {
     this.socketConnection = socketConnection;
 
     this.isBusy = false;
+    this.isInterrupted = false;
     //endregion
 
     this.sendMessage = function (message, type) {
@@ -218,6 +219,8 @@ module.exports = function (options) {
         logger.verbose('Worker job aborted');
       });
 
+      this.isInterrupted = true;
+
       this.clearPoolArrays();
 
       logger.verbose('[sendStatus] event emitted');
@@ -241,36 +244,39 @@ module.exports = function (options) {
 
     this.on('dataFetched', function (event) {
       /** event {html, worker, responseIsCorrect} */
-      logger.verbose('Adding url to sitemap array');
-      this.addUriIntoSiteMapUris(event.uri);
-      logger.verbose('[dataFetched] event handled');
 
       logger.verbose('Removing parsed uri from uri pool');
       this.removeUriFromPool(event.uri);
 
-      if (event.responseIsCorrect &&
-        (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
-        var previousUri = event.worker.uri.uri;
+      if (this.isInterrupted == false) {
+        logger.verbose('Adding url to sitemap array');
+        this.addUriIntoSiteMapUris(event.uri);
+        logger.verbose('[dataFetched] event handled');
 
-        var $ = cheerio.load(event.html);
+        if (event.responseIsCorrect &&
+          (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
+          var previousUri = event.worker.uri.uri;
 
-        var links = [];
+          var $ = cheerio.load(event.html);
 
-        $('a[href]').map(function (index, element) {
-          links.push($(element).attr('href'));
-        });
+          var links = [];
+
+          $('a[href]').map(function (index, element) {
+            links.push($(element).attr('href'));
+          });
 
 
-        if (links && links.length) {
-          var newUris = this.filterAndGraceLinks(links, previousUri);
+          if (links && links.length) {
+            var newUris = this.filterAndGraceLinks(links, previousUri);
 
-          logger.verbose('Collected ' + newUris.length + 'new URIs');
+            logger.verbose('Collected ' + newUris.length + 'new URIs');
 
-          _.each(newUris, function (uri) {
-            this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
-          }, this);
-        } else {
-          logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+            _.each(newUris, function (uri) {
+              this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
+            }, this);
+          } else {
+            logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+          }
         }
       }
 
