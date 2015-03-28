@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-
 var winston = require('winston');
 var logger = new (winston.Logger)({
   transports: [
@@ -33,35 +32,18 @@ var logger = new (winston.Logger)({
   ]
 });
 
-var ws = require('nodejs-websocket');
-var SmMaker = require('./SmMaker')({
+var wsServer = require('./wsServer')({
   logger: logger
 });
 
-var server = ws.createServer(function (conn) {
-  conn.smMaker = new SmMaker(conn);
+var httpExpressServer = require('./httpExpressServer')({
+  logger: logger
+});
 
-  conn.on('text', function (message) {
-    var messageData = JSON.parse(message);
-
-    conn.smMaker.emit(messageData.action, {
-      data: messageData.data
-    });
-  });
-
-  conn.on('close', function (code, reason) {
-    logger.info('<<< Disconnected');
-    logger.verbose('[socket-disconnected] event emitted');
-    this.smMaker.emit('socket-disconnected');
-  });
-
-  conn.on('error', function (error) {
-    logger.error(error);
-  })
-}).on('error', function (error) {
-  logger.error(error);
-}).on('connection', function (conn) {
-  logger.info('>>> Connected');
-}).listen(3000, function () {
+wsServer.listen(3000, function () {
   logger.verbose('WebSocket server started');
+});
+
+httpExpressServer.listen(8080, function () {
+  logger.verbose('Express server started on ', 8080, ' port');
 });
