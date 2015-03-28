@@ -12,7 +12,8 @@ module.exports = function (options) {
   var logger = options.logger;
 
   var SmMaker = require('./SmMaker')({
-    logger: options.logger
+    logger: options.logger,
+    config: options.config
   });
 
   return ws.createServer(function (conn) {

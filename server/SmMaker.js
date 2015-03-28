@@ -6,6 +6,10 @@ var cheerio = require('cheerio');
 var extend = require('extend');
 var http = require('http');
 var winston = require('winston');
+var builder = require('xmlbuilder');
+var async = require('async');
+var fs = require('fs');
+var nodemailer = require('nodemailer');
 
 function Uri(uri, level) {
   this.uri = uri;
@@ -18,10 +22,19 @@ module.exports = function (options) {
       transports: [
         new (winston.transports.Console)()
       ]
-    })
+    }),
+    config: {}
   };
 
   var logger = options.logger;
+
+  var transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+      user: options.config.email.user,
+      pass: options.config.email.pass
+    }
+  });
 
   function SmMaker(socketConnection) {
     //region Properties
@@ -30,6 +43,10 @@ module.exports = function (options) {
     this.countOfWorkers = undefined;
     this.changeFreq = undefined;
     this.evaluatePriority = undefined;
+    this.mbLengthLimit = 0;
+    this.uriCountLimitPerFile = 0;
+    this.retrieveType = 'link';
+    this.email = '';
 
     this.workers = [];
     this.siteMapUris = [];
@@ -74,6 +91,45 @@ module.exports = function (options) {
           data: statusObject
         }
       }));
+    };
+
+    this.sendLinks = function (links) {
+      logger.verbose('Sending links', links);
+      this.socketConnection.sendText(JSON.stringify({
+        action: 'send-links',
+        data: {
+          data: links
+        }
+      }));
+    };
+
+    this.sendEmail = function (files, sendEmailCallback) {
+      logger.verbose('Files for email received', files);
+
+      var that = this;
+
+      if (_.all(files, function (file) {
+          return !!file;
+        })) {
+        transporter.sendMail({
+          sender: options.config.email.mailOptions.from,
+          to: that.email,
+          subject: 'Sitemap: ' + that.targetSiteUri,
+          text: '',
+          attachments: _.map(files, function (path) {
+            return {path: options.config.path.basePath + path}
+          })
+        }, function (error, info) {
+          if (error) {
+            logger.error(error);
+          } else {
+            logger.info('Mail sent');
+            logger.info(info);
+            that.sendMessage('Email sent', 'success');
+            sendEmailCallback();
+          }
+        });
+      }
     };
 
     this.addUriIntoPool = function (uri) {
@@ -178,6 +234,58 @@ module.exports = function (options) {
       this.siteMapUris = [];
     };
 
+    this.getByteLengthLimit = function () {
+      return this.mbLengthLimit * 1024 * 1024 * 8;
+    };
+
+    this.getByteLengthOfString = function (string) {
+      return 8 * string.length;
+    };
+
+    /**
+     * <?xml version="1.0" encoding="UTF-8"?>
+     * <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+     *    <url>
+     *       <loc>http://www.example.com/</loc>
+     *       <lastmod>2005-01-01</lastmod>
+     *       <changefreq>monthly</changefreq>
+     *       <priority>0.8</priority>
+     *    </url>
+     * </urlset>
+     *
+     * @param uriArray
+     */
+    this.makeXmlString = function (uriArray) {
+      xml = builder.create('urlset', {
+        version: '1.0',
+        encoding: 'UTF-8'
+      });
+
+      xml.attribute('xmlns', 'http://www.sitemaps.org/schemas/sitemap/0.9');
+
+      var now = new Date();
+      var curr_date = now.getDate();
+      var curr_month = now.getMonth() + 1;
+      var curr_year = now.getFullYear();
+
+      var dateString =
+        curr_year + "-" +
+        (curr_month < 10 ? ('0' + curr_month) : curr_month) + "-" +
+        (curr_date < 10 ? ('0' + curr_date) : curr_date);
+
+      _.each(uriArray, function (uri) {
+        var url = xml.ele('url');
+
+
+        url.ele('loc', {}, uri.uri);
+        url.ele('lastmod', {}, dateString);
+        url.ele('changefreq', {}, this.changeFreq);
+        url.ele('priority', {}, (1 / uri.level).toString().substr(0, 3));
+      }, this);
+
+      return xml.end({pretty: true}).toString();
+    };
+
     //region EventHandlers
     this.on('jobRun', function () {
       logger.verbose('[jobRun] event handled');
@@ -240,6 +348,51 @@ module.exports = function (options) {
       this.clearPoolArrays();
       logger.verbose('[sendStatus] event emitted');
       this.emit('sendStatus');
+    });
+
+    this.on('generateSiteMap', function () {
+      var that = this;
+
+      logger.verbose('[generateSiteMap] event handled');
+
+      var xml = this.makeXmlString(this.siteMapUris);
+
+      logger.info(this.retrieveType);
+
+      async.waterfall([
+        function (callback) {
+
+          var currentUnixTimestamp = Date.now().toString();
+          fs.mkdir('web/sitemaps/' + currentUnixTimestamp, 0775, function (error) {
+            if (error) {
+              callback(error);
+            } else {
+              callback(null, currentUnixTimestamp);
+            }
+          })
+        },
+        function (currentUnixTimestamp, callback) {
+          if (that.siteMapUris.length < that.uriCountLimitPerFile &&
+            that.getByteLengthOfString(xml) < that.getByteLengthLimit()) {
+            fs.writeFile(
+              'web/sitemaps/' + currentUnixTimestamp + '/sitemap.xml',
+              xml,
+              function (error) {
+                if (error) {
+                  callback(error);
+                } else {
+                  callback(null, currentUnixTimestamp);
+                }
+              });
+          }
+        }
+      ], function (error, result) {
+        logger.verbose('[sendSiteMap] event emitted');
+        logger.info('Received result from async.waterfall', result);
+        that.emit('sendSiteMap', {folder: result})
+      });
+
+      console.info(this.makeXmlString(this.siteMapUris));
     });
 
     this.on('dataFetched', function (event) {
@@ -313,7 +466,8 @@ module.exports = function (options) {
           var httpRequest = http.request(httpRequestOptions, function (response) {
             var data = '';
 
-            if (response.headers['content-type'].indexOf('text/html') == -1) {
+            if (response.headers['content-type'] &&
+              response.headers['content-type'].indexOf('text/html') == -1) {
               logger.verbose('[dataFetched] event emitted with wrong response');
               logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
               logger.warn('>>>', {uri: uri});
@@ -358,6 +512,39 @@ module.exports = function (options) {
         isBusy: this.isBusy
       });
     });
+
+    this.on('sendSiteMap', function (event) {
+      logger.verbose('[sendSiteMap] event handled');
+      /** event {folder} */
+      var that = this;
+
+      logger.verbose('Reading dir', event.folder);
+      fs.readdir('web/sitemaps/' + event.folder, function (error, filelist) {
+        if (error) {
+          logger.error(error);
+        } else {
+          logger.info(filelist);
+          if (filelist.length > 0) {
+            if (that.retrieveType == 'link') {
+              that.sendLinks(_.map(filelist, function (file) {
+                return 'sitemaps/' + event.folder + '/' + file;
+              }));
+              that.emit('workComplete');
+            } else if (that.retrieveType == 'email' && that.email) {
+              that.sendEmail(_.map(filelist, function (file) {
+                return 'web/sitemaps/' + event.folder + '/' + file;
+              }), function () {
+                that.emit('workComplete');
+              });
+            } else {
+              logger.warn('No receive transport (link or email) not assigned');
+            }
+          } else {
+            that.sendMessage('Sitemap folder is empty. Hm.. Strangely!', 'warning');
+          }
+        }
+      });
+    });
     //endregion
 
     //region Send status emitting
@@ -386,7 +573,11 @@ module.exports = function (options) {
         maxNestingLevel: +event.data.maxNestingLevel,
         countOfWorkers: +event.data.countOfWorkers,
         changeFreq: event.data.changeFreq,
-        evaluatePriority: event.data.evaluatePriority
+        evaluatePriority: event.data.evaluatePriority,
+        mbLengthLimit: event.data.mbLengthLimit,
+        uriCountLimitPerFile: event.data.uriCountLimitPerFile,
+        retrieveType: event.data.retrieveType,
+        email: event.data.email
       });
       //extend(this, event.data);
 

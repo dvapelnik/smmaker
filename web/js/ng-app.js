@@ -40,8 +40,14 @@
       $scope.$on('update-status', function (event, data) {
         $scope.jobStatus = data.data;
       });
+      $scope.$on('send-links', function (event, data) {
+        $scope.sitemapLinks = data.data;
+        $scope.$apply();
+      });
 
       $scope.messages = [];
+
+      $scope.sitemapLinks = [];
 
       $scope.jobStatus = {
         countOfActiveWorkers: 0,
@@ -62,7 +68,7 @@
       };
 
       $scope.chageFreqOptions = [
-        {value: 'auto', label: 'Auto'},
+        //{value: 'auto', label: 'Auto'},
         {value: 'always', label: 'Always'},
         {value: 'hourly', label: 'Hourly'},
         {value: 'daily', label: 'Daily'},
@@ -78,8 +84,12 @@
           //targetSiteUri: 'http://pmg17.vn.ua',
           maxNestingLevel: 2,
           countOfWorkers: 2,
-          changefreq: $scope.chageFreqOptions[0],
-          evaluatePriority: false
+          changefreq: $scope.chageFreqOptions[2],
+          evaluatePriority: false,
+          mbLengthLimit: 10,
+          uriCountLimitPerFile: 50000,
+          retrieveType: 'link',
+          email: ''
         };
       }
 
@@ -102,7 +112,10 @@
               countOfWorkers: $scope.form.countOfWorkers,
               changeFreq: $scope.form.changefreq.value,
               evaluatePriority: $scope.form.evaluatePriority,
-              maxCountOfUrl: $scope.maxCountOfUrl
+              mbLengthLimit: $scope.form.mbLengthLimit,
+              uriCountLimitPerFile: $scope.form.uriCountLimitPerFile,
+              retrieveType: $scope.form.retrieveType,
+              email: $scope.form.email
             }
           }));
         }
@@ -149,10 +162,17 @@
 
         if (!validator.isNumeric(formData.maxNestingLevel)) {
           growl.error('Max nesting level is not a numeric');
+          return false;
         }
 
         if (!validator.isNumeric(formData.countOfWorkers)) {
           growl.error('Count of workers is not a numeric');
+          return false;
+        }
+
+        if(formData.retrieveType == 'email' && formData.email == ''){
+          growl.error('Input your email');
+          return false;
         }
 
         return true;

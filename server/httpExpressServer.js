@@ -18,6 +18,7 @@ module.exports = function (options) {
 
   app.use('/bower', express.static('web/bower'));
   app.use('/js', express.static('web/js'));
+  app.use('/sitemaps', express.static('web/sitemaps'));
 
   app.get(/^\/(index.html)?$/, function (req, res) {
     logger.verbose('Responded: /');

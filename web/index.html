@@ -98,6 +98,32 @@
                             </div>
                         </div>
                         <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="mbLengthLimit">Size limit (Mb)</label>
+                                    <input
+                                            type="number"
+                                            class="form-control"
+                                            ng-disabled="getJobStatusObject().isBusy"
+                                            id="mbLengthLimit"
+                                            ng-model="form.mbLengthLimit"
+                                            placeholder="2"/>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="uriCountLimitPerFile">Url count limit per file</label>
+                                    <input
+                                            type="number"
+                                            class="form-control"
+                                            ng-disabled="getJobStatusObject().isBusy"
+                                            id="uriCountLimitPerFile"
+                                            ng-model="form.uriCountLimitPerFile"
+                                            placeholder="2"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-12">
                                 <div class="form-group">
                                     <label>
@@ -108,6 +134,34 @@
                                         Evaluate priority
                                     </label>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="radio">
+                                    <label>
+                                        <input
+                                                type="radio"
+                                                value="link"
+                                                ng-model="form.retrieveType">
+                                        Let me to download sitemap via link
+                                    </label>
+                                </div>
+                                <div class="radio">
+                                    <label>
+                                        <input
+                                                type="radio"
+                                                value="email"
+                                                ng-model="form.retrieveType">
+                                        Send sitmap on my email
+                                    </label>
+                                    <input
+                                            type="email"
+                                            placeholder="email"
+                                            ng-model="form.email"
+                                            ng-disabled="form.retrieveType == 'link'"/>
+                                </div>
+
                             </div>
                         </div>
                         <div style="text-align: center">
@@ -168,8 +222,14 @@
                             </table>
                         </div>
                     </div>
-                    <div>
-                        <p ng-repeat="message in messages | reverse | limitTo:10 track by $index">{{message}}</p>
+                    <div class="row" ng-show="sitemapLinks.length > 0">
+                        <div class="col-md-12">
+                            <label>Sitemap links:</label>
+
+                            <p ng-repeat="sitemapLink in sitemapLinks">
+                                <a ng-href="{{sitemapLink}}" target="_blank">{{sitemapLink.split('/')[2]}}</a>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
