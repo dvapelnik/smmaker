@@ -24,17 +24,14 @@ module.exports = function (options) {
       conn.smMaker.emit(messageData.action, {
         data: messageData.data
       });
-    });
-
-    conn.on('close', function (code, reason) {
+    }).on('close', function (code, reason) {
       logger.info('<<< Disconnected');
+
       logger.verbose('[socket-disconnected] event emitted');
       this.smMaker.emit('socket-disconnected');
-    });
-
-    conn.on('error', function (error) {
+    }).on('error', function (error) {
       logger.error(error);
-    })
+    });
   }).on('error', function (error) {
     logger.error(error);
   }).on('connection', function (conn) {

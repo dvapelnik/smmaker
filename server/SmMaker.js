@@ -165,6 +165,13 @@ module.exports = function (options) {
       }
     };
 
+    this.clearPoolArrays = function () {
+      logger.verbose('Resetting all pools');
+      this.workers = [];
+      this.uriPool = [];
+      this.siteMapUris = [];
+    };
+
     //region EventHandlers
     this.on('jobRun', function () {
       logger.verbose('[jobRun] event handled');
@@ -181,12 +188,51 @@ module.exports = function (options) {
       }
     });
 
-    this.jobCompleteHandler = function () {
-      logger.verbose('[jobComplete] event handled');
-      this.isBusy = false;
-      logger.info(this.siteMapUris);
-      this.sendMessage('Job complete!', 'success');
+    this.jobCompleteHandler = function (event) {
+      /** event {wasInterrupted} */
+      event = event || {};
+
+      if (event.wasInterrupted) {
+        this.sendMessage('Job interrupted!', 'warning');
+        logger.verbose('[workComplete] event emitted');
+        this.emit('workComplete', event);
+      } else {
+        logger.verbose('[jobComplete] event handled');
+        //this.isBusy = false;
+        //logger.info(this.siteMapUris);
+        this.sendMessage('Job complete!<br>Genearating sitemap file', 'success');
+        logger.verbose('[generateSiteMap] event handled');
+        this.emit('generateSiteMap');
+      }
     };
+
+    this.on('jobInterrupt', function () {
+      logger.verbose('Aborting workers');
+      _.each(this.workers, function (httpRequest) {
+        httpRequest.abort();
+        logger.verbose('Worker job aborted');
+      });
+
+      this.clearPoolArrays();
+
+      logger.verbose('[sendStatus] event emitted');
+      this.emit('sendStatus');
+
+      logger.verbose('[jobComplete] event emitted');
+      this.emit('jobComplete', {wasInterrupted: true});
+    });
+
+    this.on('workComplete', function (event) {
+      /** event {wasInterrupted} */
+      event = event || {};
+
+      this.sendMessage('Work complete', 'success');
+      this.isBusy = false;
+
+      this.clearPoolArrays();
+      logger.verbose('[sendStatus] event emitted');
+      this.emit('sendStatus');
+    });
 
     this.on('dataFetched', function (event) {
       /** event {html, worker, responseIsCorrect} */
@@ -249,7 +295,7 @@ module.exports = function (options) {
             path: parsedUri.path
           };
 
-          if(parsedUri.port){
+          if (parsedUri.port) {
             httpRequestOptions.port = parsedUri.port;
           }
 
@@ -271,6 +317,8 @@ module.exports = function (options) {
                 that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri});
               }
             });
+          });
+          httpRequest.on('error', function (error) {
           });
           httpRequest.uri = uri;
 
@@ -333,8 +381,10 @@ module.exports = function (options) {
     });
 
     this.on('interrupt', function (event) {
-      this.sendMessage('Job interrupted', 'info');
+      this.sendMessage('Job interrupting...', 'info');
       logger.verbose('Interrupt event');
+      logger.verbose('[jobInterrupt] event emitted');
+      this.emit('jobInterrupt');
     });
 
     this.on('getStatus', function (event) {
