@@ -307,21 +307,24 @@ module.exports = function (options) {
           var httpRequest = http.request(httpRequestOptions, function (response) {
             var data = '';
 
-            response.on('data', function (chunk) {
-              data += chunk;
-            });
+            if (response.headers['content-type'].indexOf('text/html') == -1) {
+              logger.verbose('[dataFetched] event emitted with wrong response');
+              logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
+              logger.warn('>>>', {uri: uri});
 
-            response.on('end', function () {
-              if (response.headers['content-type'].indexOf('text') != -1) {
+              response.socket.destroy();
+              logger.verbose('[dataFetched] event emitted with wrong response');
+              that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri});
+            } else {
+              response.on('data', function (chunk) {
+                data += chunk;
+              });
+
+              response.on('end', function () {
                 logger.verbose('[dataFetched] event emitted');
                 that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri, responseIsCorrect: true});
-              } else {
-                logger.verbose('[dataFetched] event emitted with wrong response');
-                logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
-                logger.warn('>>>', {uri: uri});
-                that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri});
-              }
-            });
+              });
+            }
           });
           httpRequest.on('error', function (error) {
           });

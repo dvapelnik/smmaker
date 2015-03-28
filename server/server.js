@@ -19,11 +19,11 @@ var logger = new (winston.Logger)({
       level: 'debug',
       colorize: true
     }),
-    new (winston.transports.Console)({
-      name: 'console-warn',
-      level: 'warn',
-      colorize: true
-    }),
+    //new (winston.transports.Console)({
+    //  name: 'console-warn',
+    //  level: 'warn',
+    //  colorize: true
+    //}),
     new (winston.transports.Console)({
       name: 'console-error',
       level: 'error',
