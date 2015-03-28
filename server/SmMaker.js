@@ -7,6 +7,11 @@ var extend = require('extend');
 var http = require('http');
 var winston = require('winston');
 
+function Uri(uri, level) {
+  this.uri = uri;
+  this.level = level;
+}
+
 module.exports = function (options) {
   options = options || {
     logger: new (winston.Logger)({
@@ -84,9 +89,12 @@ module.exports = function (options) {
     };
 
     this.getUriFromPool = function () {
+      var minLevel = _.min(_.pluck(this.uriPool, 'level'));
+
       var filteredUriPool = _.filter(this.uriPool, function (uri) {
-        return this.siteMapUris.indexOf(uri) == -1 &&
-          _.pluck(this.workers, 'uri').indexOf(uri) == -1;
+        return uri.level <= minLevel &&
+          this.siteMapUris.indexOf(uri.uri) == -1 &&
+          _.pluck(_.pluck(this.workers, 'uri'), 'uri').indexOf(uri.uri) == -1;
       }, this);
 
       return filteredUriPool.length > 0 ? filteredUriPool[0] : undefined;
@@ -123,9 +131,9 @@ module.exports = function (options) {
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
-          return this.uriPool.indexOf(link) == -1 &&
-            this.siteMapUris.indexOf(link) == -1 &&
-            _.pluck(this.workers, 'uri').indexOf(link) == -1;
+          return _.pluck(this.uriPool, 'uri').indexOf(link) == -1 &&
+            _.pluck(this.siteMapUris, 'uri').indexOf(link) == -1 &&
+            _.pluck(_.pluck(this.workers, 'uri'), 'uri').indexOf(link) == -1;
         }, this);
 
       return _.uniq(resultUris);
@@ -166,7 +174,7 @@ module.exports = function (options) {
         this.once('jobComplete', this.jobCompleteHandler);
         this.sendMessage('Run init', 'info');
         logger.verbose('Adding uri into poll');
-        this.addUriIntoPool(this.targetSiteUri);
+        this.addUriIntoPool(new Uri(this.targetSiteUri, 1));
         logger.verbose('[workerRemovedFromWorkerPool] event synthetically emitted');
         this.emit('workerRemovedFromWorkerPool');
         this.isBusy = true;
@@ -181,7 +189,7 @@ module.exports = function (options) {
     };
 
     this.on('dataFetched', function (event) {
-      /** event {html, worker, uri, responseIsCorrect} */
+      /** event {html, worker, responseIsCorrect} */
       logger.verbose('Adding url to sitemap array');
       this.addUriIntoSiteMapUris(event.uri);
       logger.verbose('[dataFetched] event handled');
@@ -189,12 +197,13 @@ module.exports = function (options) {
       logger.verbose('Removing parsed uri from uri pool');
       this.removeUriFromPool(event.uri);
 
-      if (event.responseIsCorrect) {
-        var previousUri = event.uri;
+      if (event.responseIsCorrect &&
+        (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
+        var previousUri = event.worker.uri.uri;
 
         var $ = cheerio.load(event.html);
 
-        links = [];
+        var links = [];
 
         $('a[href]').map(function (index, element) {
           links.push($(element).attr('href'));
@@ -207,7 +216,7 @@ module.exports = function (options) {
           logger.verbose('Collected ' + newUris.length + 'new URIs');
 
           _.each(newUris, function (uri) {
-            this.addUriIntoPool(uri);
+            this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
           }, this);
         } else {
           logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
@@ -229,7 +238,7 @@ module.exports = function (options) {
         var uri = this.getUriFromPool();
 
         if (uri) {
-          var parsedUri = Url.parse(uri);
+          var parsedUri = Url.parse(uri.uri);
 
           logger.info(parsedUri);
 
