@@ -76,11 +76,10 @@
         return {
           targetSiteUri: 'http://just-try-another.blogspot.nl/',
           //targetSiteUri: 'http://pmg17.vn.ua',
-          maxDepth: 2,
+          maxNestingLevel: 2,
           countOfWorkers: 2,
           changefreq: $scope.chageFreqOptions[0],
-          evaluatePriority: false,
-          maxCountOfUrl: 10
+          evaluatePriority: false
         };
       }
 
@@ -99,7 +98,7 @@
             action: 'run',
             data: {
               targetSiteUri: $scope.form.targetSiteUri,
-              maxDepth: $scope.form.maxDepth,
+              maxNestingLevel: $scope.form.maxNestingLevel,
               countOfWorkers: $scope.form.countOfWorkers,
               changeFreq: $scope.form.changefreq.value,
               evaluatePriority: $scope.form.evaluatePriority,
@@ -148,8 +147,8 @@
           return false;
         }
 
-        if (!validator.isNumeric(formData.maxDepth)) {
-          growl.error('Max depth is not a numeric');
+        if (!validator.isNumeric(formData.maxNestingLevel)) {
+          growl.error('Max nesting level is not a numeric');
         }
 
         if (!validator.isNumeric(formData.countOfWorkers)) {

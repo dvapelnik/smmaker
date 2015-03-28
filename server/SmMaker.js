@@ -21,11 +21,10 @@ module.exports = function (options) {
   function SmMaker(socketConnection) {
     //region Properties
     this.targetSiteUri = undefined;
-    this.maxDepth = undefined;
+    this.maxNestingLevel = undefined;
     this.countOfWorkers = undefined;
     this.changeFreq = undefined;
     this.evaluatePriority = undefined;
-    this.maxCountOfUrl = undefined;
 
     this.workers = [];
     this.siteMapUris = [];
@@ -298,11 +297,10 @@ module.exports = function (options) {
 
       extend(this, {
         targetSiteUri: event.data.targetSiteUri,
-        maxDepth: +event.data.maxDepth,
+        maxNestingLevel: +event.data.maxNestingLevel,
         countOfWorkers: +event.data.countOfWorkers,
         changeFreq: event.data.changeFreq,
-        evaluatePriority: event.data.evaluatePriority,
-        maxCountOfUrl: +event.data.maxCountOfUrl
+        evaluatePriority: event.data.evaluatePriority
       });
       //extend(this, event.data);
 
