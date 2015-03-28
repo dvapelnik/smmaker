@@ -42,7 +42,6 @@ module.exports = function (options) {
     this.maxNestingLevel = undefined;
     this.countOfWorkers = undefined;
     this.changeFreq = undefined;
-    this.evaluatePriority = undefined;
     this.mbLengthLimit = 0;
     this.uriCountLimitPerFile = 0;
     this.retrieveType = 'link';
@@ -667,7 +666,6 @@ module.exports = function (options) {
         maxNestingLevel: +event.data.maxNestingLevel,
         countOfWorkers: +event.data.countOfWorkers,
         changeFreq: event.data.changeFreq,
-        evaluatePriority: event.data.evaluatePriority,
         mbLengthLimit: event.data.mbLengthLimit,
         uriCountLimitPerFile: event.data.uriCountLimitPerFile,
         retrieveType: event.data.retrieveType,

@@ -78,21 +78,6 @@
         {value: 'never', label: 'Never'}
       ];
 
-      function getInitialFormState() {
-        return {
-          targetSiteUri: 'http://just-try-another.blogspot.nl/',
-          //targetSiteUri: 'http://pmg17.vn.ua',
-          maxNestingLevel: 2,
-          countOfWorkers: 2,
-          changefreq: $scope.chageFreqOptions[2],
-          evaluatePriority: false,
-          mbLengthLimit: 10,
-          uriCountLimitPerFile: 50000,
-          retrieveType: 'link',
-          email: ''
-        };
-      }
-
       $scope.clearForm = function () {
         $scope.form = getInitialFormState();
       };
@@ -111,7 +96,6 @@
               maxNestingLevel: $scope.form.maxNestingLevel,
               countOfWorkers: $scope.form.countOfWorkers,
               changeFreq: $scope.form.changefreq.value,
-              evaluatePriority: $scope.form.evaluatePriority,
               mbLengthLimit: $scope.form.mbLengthLimit,
               uriCountLimitPerFile: $scope.form.uriCountLimitPerFile,
               retrieveType: $scope.form.retrieveType,
@@ -128,12 +112,24 @@
 
       $scope.clearForm();
 
+      function getInitialFormState() {
+        return {
+          targetSiteUri: 'http://just-try-another.blogspot.nl/',
+          //targetSiteUri: 'http://pmg17.vn.ua',
+          maxNestingLevel: 2,
+          countOfWorkers: 2,
+          changefreq: $scope.chageFreqOptions[2],
+          mbLengthLimit: 10,
+          uriCountLimitPerFile: 50000,
+          retrieveType: 'link',
+          email: ''
+        };
+      }
+
       function addNewMessage(message) {
         $scope.messages.push(message);
         $scope.$apply();
       }
-
-
     })
     .filter('reverse', function () {
       return function (items) {
