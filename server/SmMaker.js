@@ -43,13 +43,18 @@ module.exports = function (options) {
     this.sendMessage = function (message, type) {
       logger.verbose('Sending message', message, type);
       type = type || 'info';
-      this.socketConnection.sendText(JSON.stringify({
-        action: 'message',
-        data: {
-          message: message,
-          type: type
-        }
-      }));
+
+      if (this.socketConnection.readyState == 1) {
+        this.socketConnection.sendText(JSON.stringify({
+          action: 'message',
+          data: {
+            message: message,
+            type: type
+          }
+        }));
+      } else {
+        logger.info('Socket connection not ready for messaging');
+      }
     };
 
     this.sendTransfer = function (transfer) {

@@ -27,6 +27,8 @@ module.exports = function (options) {
     }).on('close', function (code, reason) {
       logger.info('<<< Disconnected');
 
+      this.smMaker.emit('interrupt');
+
       logger.verbose('[socket-disconnected] event emitted');
       this.smMaker.emit('socket-disconnected');
     }).on('error', function (error) {
