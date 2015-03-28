@@ -271,6 +271,14 @@ module.exports = function (options) {
           that.addWorkerInWorkerPool(httpRequest);
         }
       }, this);
+
+      if (this.isBusy &&
+        this.workers.length == 0 &&
+        this.uriPool.length == 0 &&
+        this.siteMapUris.length > 0) {
+        logger.verbose('[jobComplete] event emitted');
+        this.emit('jobComplete');
+      }
     });
 
     this.on('sendStatus', function () {
@@ -331,29 +339,7 @@ module.exports = function (options) {
 
     this.on('socket-disconnected', function () {
       logger.verbose('[socket-disconnected] event handled');
-      clearTimeout(this.timer);
     });
-
-    this.on('jobRun', function () {
-      logger.verbose('[jobRun] event handled');
-      logger.verbose('Starting timer for checking job status complete');
-      setTimeout(function run() {
-        logger.info('Try to check is job complete');
-
-        if (this.isBusy &&
-          this.workers.length == 0 &&
-          this.uriPool.length == 0 &&
-          this.siteMapUris.length > 0) {
-
-          this.emit('jobComplete');
-        } else {
-          this.timer = setTimeout(run.bind(this), 2000);
-        }
-      }.bind(this), 2000);
-    });
-    //endregion
-
-    this.timer = undefined;
   }
 
   util.inherits(SmMaker, EventEmitter);
