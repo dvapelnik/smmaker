@@ -58,6 +58,7 @@ module.exports = function (options) {
     this.isInterrupted = false;
     //endregion
 
+    //region Utilities
     this.sendMessage = function (message, type) {
       logger.verbose('Sending message', message, type);
       type = type || 'info';
@@ -285,6 +286,7 @@ module.exports = function (options) {
 
       return xml.end({pretty: true}).toString();
     };
+    //endregion
 
     //region EventHandlers
     this.on('jobRun', function () {
