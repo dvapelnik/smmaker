@@ -99,6 +99,7 @@
               mbLengthLimit: $scope.form.mbLengthLimit,
               uriCountLimitPerFile: $scope.form.uriCountLimitPerFile,
               retrieveType: $scope.form.retrieveType,
+              makeAPrettyXml: $scope.form.makeAPrettyXml,
               email: $scope.form.email
             }
           }));
@@ -121,6 +122,7 @@
           changefreq: $scope.chageFreqOptions[2],
           mbLengthLimit: 10,
           uriCountLimitPerFile: 50000,
+          makeAPrettyXml: true,
           retrieveType: 'link',
           email: ''
         };

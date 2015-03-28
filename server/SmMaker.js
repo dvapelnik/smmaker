@@ -44,6 +44,7 @@ module.exports = function (options) {
     this.changeFreq = undefined;
     this.mbLengthLimit = 0;
     this.uriCountLimitPerFile = 0;
+    this.makeAPrettyXml = undefined;
     this.retrieveType = 'link';
     this.email = '';
 
@@ -286,7 +287,7 @@ module.exports = function (options) {
         url.ele('priority', {}, (1 / uri.level).toString().substr(0, 3));
       }, this);
 
-      return xml.end({pretty: true}).toString();
+      return xml.end({pretty: this.makeAPrettyXml}).toString();
     };
 
     /**
@@ -318,7 +319,7 @@ module.exports = function (options) {
         sitemapEle.ele('lastmod', {}, dateString);
       }, this);
 
-      return xml.end({pretty: true}).toString();
+      return xml.end({pretty: this.makeAPrettyXml}).toString();
     };
     //endregion
 
@@ -668,6 +669,7 @@ module.exports = function (options) {
         changeFreq: event.data.changeFreq,
         mbLengthLimit: event.data.mbLengthLimit,
         uriCountLimitPerFile: event.data.uriCountLimitPerFile,
+        makeAPrettyXml: event.data.makeAPrettyXml,
         retrieveType: event.data.retrieveType,
         email: event.data.email
       });

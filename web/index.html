@@ -124,21 +124,37 @@
                             </div>
                         </div>
                         <div class="row">
+                            <div class="col-md-6">
+                                <div class="checkbox" ng-class="{disabled: getJobStatusObject().isBusy}">
+                                    <label>
+                                        <input
+                                                type="checkbox"
+                                                ng-disabled="getJobStatusObject().isBusy"
+                                                ng-model="form.makeAPrettyXml">
+                                        Make a pretty XML file with indents
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6"></div>
+                        </div>
+                        <div class="row">
                             <div class="col-md-12">
-                                <div class="radio">
+                                <div class="radio" ng-class="{disabled: getJobStatusObject().isBusy}">
                                     <label>
                                         <input
                                                 type="radio"
                                                 value="link"
+                                                ng-disabled="getJobStatusObject().isBusy"
                                                 ng-model="form.retrieveType">
                                         Let me to download sitemap via link
                                     </label>
                                 </div>
-                                <div class="radio">
+                                <div class="radio" ng-class="{disabled: getJobStatusObject().isBusy}">
                                     <label>
                                         <input
                                                 type="radio"
                                                 value="email"
+                                                ng-disabled="getJobStatusObject().isBusy"
                                                 ng-model="form.retrieveType">
                                         Send sitmap on my email
                                     </label>
