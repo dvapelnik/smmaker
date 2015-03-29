@@ -59,25 +59,32 @@ module.exports = function (options) {
     //endregion
 
     //region Utilities
+    this.sendText = function (text) {
+      if (this.socketConnection.readyState == 1) {
+        logger.verbose('Sending text via socket');
+        this.socketConnection.sendText(text);
+      } else {
+        logger.verbose('Can\'t send text via socket');
+        logger.verbose('Socker reary state', this.socketConnection.readyState);
+      }
+    };
+
     this.sendMessage = function (message, type) {
       logger.verbose('Sending message', message, type);
       type = type || 'info';
 
-      if (this.socketConnection.readyState == 1) {
-        this.socketConnection.sendText(JSON.stringify({
-          action: 'message',
-          data: {
-            message: message,
-            type: type
-          }
-        }));
-      } else {
-        logger.info('Socket connection not ready for messaging');
-      }
+      this.sendText(JSON.stringify({
+        action: 'message',
+        data: {
+          message: message,
+          type: type
+        }
+      }));
     };
 
     this.sendTransfer = function (transfer) {
-      this.socketConnection.sendText(JSON.stringify({
+      logger.verbose('Transferring data via socket');
+      this.sendText(JSON.stringify({
         action: 'transfer',
         data: {
           data: transfer
@@ -86,7 +93,8 @@ module.exports = function (options) {
     };
 
     this.sendStatus = function (statusObject) {
-      this.socketConnection.sendText(JSON.stringify({
+      logger.verbose('Sending status via socket');
+      this.sendText(JSON.stringify({
         action: 'update-status',
         data: {
           data: statusObject
@@ -96,7 +104,7 @@ module.exports = function (options) {
 
     this.sendLinks = function (links) {
       logger.verbose('Sending links', links);
-      this.socketConnection.sendText(JSON.stringify({
+      this.sendText(JSON.stringify({
         action: 'send-links',
         data: {
           data: links
