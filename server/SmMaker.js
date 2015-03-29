@@ -10,6 +10,15 @@ var builder = require('xmlbuilder');
 var async = require('async');
 var fs = require('fs');
 var nodemailer = require('nodemailer');
+var normalizeurl = require('normalizeurl');
+var request = require('request');
+
+var unsupportedExts = [
+  'js', 'css', 'bmp', 'jpg', 'jpeg',
+  'gif', 'png', 'avi', 'flv', 'mp4',
+  'swf', 'zip', 'rar', 'gz', 'tgz',
+  'wmv', 'wma', 'mp3', 'ogg', 'flac'
+]
 
 function Uri(uri, level) {
   this.uri = uri;
@@ -17,15 +26,6 @@ function Uri(uri, level) {
 }
 
 module.exports = function (options) {
-  options = options || {
-    logger: new (winston.Logger)({
-      transports: [
-        new (winston.transports.Console)()
-      ]
-    }),
-    config: {}
-  };
-
   var logger = options.logger;
 
   var transporter = nodemailer.createTransport({
@@ -170,27 +170,46 @@ module.exports = function (options) {
     this.filterAndGraceLinks = function (links, previousUri) {
       var parsedUri = Url.parse(previousUri);
 
+      links = _.filter(links, function (link) {
+        return !!link;
+      }).filter(function (link) {
+        return link != '#';
+      });
+
+      logger.warn(links);
+
       var resultUris = _
         .map(links, function (link) {
           var _l;
           if (link.match(/^https?:\/\//)) {
-            return link;
+            _l = link;
           } else if (link.match(/^(\/){2}/)) {
-            return parsedUri.protocol + link;
+            _l = parsedUri.protocol + link;
           } else if (link.match(/^\//)) {
-            return parsedUri.protocol + '//' + parsedUri.host + link;
+            _l = parsedUri.protocol + '//' + parsedUri.host + link;
           } else if (link.match(/#/)) {
-            return parsedUri.protocol + '//' +
-              parsedUri.host +
-              parsedUri.pathname.replace(/#[^\/]*$/, '') + link;
+            _l = parsedUri.protocol + '//' +
+            parsedUri.host +
+            parsedUri.pathname.replace(/#[^\/]*$/, '') + link;
           } else {
-            return parsedUri.protocol + '//' +
-              parsedUri.host +
-              parsedUri.pathname.replace(/\/[^\/]*$/, '/') +
-              link;
+            _l = parsedUri.protocol + '//' +
+            parsedUri.host +
+            parsedUri.pathname.replace(/\/[^\/]*$/, '/') +
+            link;
           }
+
+          return _l;
         })
         .filter(function (link) {
+          return _.all(unsupportedExts, function (ext) {
+            return !link.match(new RegExp('\.' + ext, 'i'));
+          });
+        })
+        .filter(function (link) {
+          return !link.match(/mailto/);
+        })
+        .filter(function (link) {
+          logger.warn(link.indexOf(parsedUri.protocol + '//' + parsedUri.host));
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
@@ -198,6 +217,8 @@ module.exports = function (options) {
             _.pluck(this.siteMapUris, 'uri').indexOf(link) == -1 &&
             _.pluck(_.pluck(this.workers, 'uri'), 'uri').indexOf(link) == -1;
         }, this);
+
+      logger.warn(resultUris);
 
       return _.uniq(resultUris);
     };
@@ -489,8 +510,6 @@ module.exports = function (options) {
         logger.info('Received result from async.waterfall', result);
         that.emit('sendSiteMap', {folder: result})
       });
-
-      console.info(this.makeXmlString(this.siteMapUris));
     });
 
     this.on('dataFetched', function (event) {
@@ -508,15 +527,20 @@ module.exports = function (options) {
           (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
           var previousUri = event.worker.uri.uri;
 
+          logger.verbose('Make a cheerio $');
           var $ = cheerio.load(event.html);
+
+          logger.warn(event.html);
 
           var links = [];
 
-          $('a[href]').map(function (index, element) {
+          logger.verbose('Make a aTag array');
+          $('a').map(function (index, element) {
+            console.log($(element).attr('href'));
             links.push($(element).attr('href'));
           });
 
-
+          logger.verbose('Gracefulling....');
           if (links && links.length) {
             var newUris = this.filterAndGraceLinks(links, previousUri);
 
@@ -546,49 +570,30 @@ module.exports = function (options) {
         var uri = this.getUriFromPool();
 
         if (uri) {
-          var parsedUri = Url.parse(uri.uri);
 
-          logger.info(parsedUri);
-
-          logger.verbose('Make worker..');
-
-          var httpRequestOptions = {
-            host: parsedUri.hostname,
-            path: parsedUri.path
-          };
-
-          if (parsedUri.port) {
-            httpRequestOptions.port = parsedUri.port;
-          }
-
-          var httpRequest = http.request(httpRequestOptions, function (response) {
-            var data = '';
-
-            if (response.headers['content-type'] &&
-              response.headers['content-type'].indexOf('text/html') == -1) {
-              logger.verbose('[dataFetched] event emitted with wrong response');
-              logger.warn('Wrong Content-type in response: ' + response.headers['content-type']);
-              logger.warn('>>>', {uri: uri});
-
-              response.socket.destroy();
-              logger.verbose('[dataFetched] event emitted with wrong response');
-              that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri});
-            } else {
-              response.on('data', function (chunk) {
-                data += chunk;
-              });
-
-              response.on('end', function () {
+          try {
+            var httpRequest = request({
+              uri: uri.uri,
+              followRedirect: false,
+              followAllRedirects: false
+            }, function (error, response, body) {
+              if (!error && response.statusCode == 200) {
                 logger.verbose('[dataFetched] event emitted');
-                that.emit('dataFetched', {html: data, worker: httpRequest, uri: uri, responseIsCorrect: true});
-              });
-            }
-          });
-          httpRequest.on('error', function (error) {
-          });
+                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
+              } else {
+                logger.error(error);
+                logger.warn(response.statusCode);
+                logger.verbose('[dataFetched] event emitted');
+                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
+              }
+            });
+          } catch (e) {
+            logger.error(e);
+            logger.error(e.stack);
+          }
           httpRequest.uri = uri;
 
-          httpRequest.end();
+          //httpRequest.end();
           that.addWorkerInWorkerPool(httpRequest);
         }
       }, this);

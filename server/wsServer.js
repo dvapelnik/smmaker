@@ -1,14 +1,6 @@
 var ws = require('nodejs-websocket');
 
 module.exports = function (options) {
-  options = options || {
-    logger: new (winston.Logger)({
-      transports: [
-        new (winston.transports.Console)()
-      ]
-    })
-  };
-
   var logger = options.logger;
 
   var SmMaker = require('./SmMaker')({
