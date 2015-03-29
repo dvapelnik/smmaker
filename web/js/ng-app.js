@@ -5,6 +5,16 @@
       growlProvider.globalTimeToLive(5000);
     }])
     .controller('MainController', function ($scope, $websocket, growl, validateForm) {
+      $scope.safeApply = function(fn) {
+        var phase = this.$root.$$phase;
+        if(phase == '$apply' || phase == '$digest') {
+          if(fn && (typeof(fn) === 'function')) {
+            fn();
+          }
+        } else {
+          this.$apply(fn);
+        }
+      };
 
       //region WebSocket
       var socket = $websocket('ws://localhost:30000');
@@ -14,13 +24,14 @@
         $scope.$broadcast(eventData.action, eventData.data);
       });
       socket.onOpen(function () {
-        $scope.socketIsConnected = true;
-        $scope.$apply();
+        $scope.safeApply(function () {
+          $scope.socketIsConnected = true;
+        })
       });
       socket.onClose(function () {
-        $scope.socketIsConnected = false;
-        growl.error('Socket connection closed<br>Try to refresh page');
-        $scope.$apply();
+        $scope.safeApply(function () {
+          growl.error('Socket connection closed<br>Try to refresh page');
+        });
       });
       socket.onError(function () {
         addNewMessage('Socket connection error occurred<br>Try to refresh page');
@@ -41,8 +52,9 @@
         $scope.jobStatus = data.data;
       });
       $scope.$on('send-links', function (event, data) {
-        $scope.sitemapLinks = data.data;
-        $scope.$apply();
+        $scope.safeApply(function () {
+          $scope.sitemapLinks = data.data;
+        });
       });
 
       $scope.messages = [];
@@ -89,8 +101,9 @@
       };
       $scope.run = function () {
         if (validateForm($scope.form)) {
-          $scope.sitemapLinks = [];
-          $scope.$apply();
+          $scope.safeApply(function () {
+            $scope.sitemapLinks = [];
+          });
 
           socket.send(JSON.stringify({
             action: 'run',
@@ -134,8 +147,9 @@
       }
 
       function addNewMessage(message) {
-        $scope.messages.push(message);
-        $scope.$apply();
+        $scope.safeApply(function () {
+          $scope.messages.push(message);
+        });
       }
     })
     .filter('reverse', function () {
@@ -173,7 +187,7 @@
           return false;
         }
 
-        if(formData.retrieveType == 'email' && formData.email == ''){
+        if (formData.retrieveType == 'email' && formData.email == '') {
           growl.error('Input your email');
           return false;
         }

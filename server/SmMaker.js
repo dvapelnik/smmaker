@@ -239,9 +239,9 @@ module.exports = function (options) {
 
         var httpRequest = request({
           uri: uri.uri,
+          timeout: 10000,
           followRedirect: false,
-          followAllRedirects: false,
-          timeout: 10000
+          followAllRedirects: false
         }, function (error, response, body) {
           var responseIsCorrect = false;
 
@@ -251,6 +251,9 @@ module.exports = function (options) {
 
           if (error) {
             logger.error(error);
+            if(error.code == 'ETIMEDOUT'){
+              that.sendMessage('Request error: '+error.code, 'error');
+            }
           } else if (response.statusCode > 300 && response.statusCode < 400) {
             logger.warn(response.headers);
 
@@ -581,43 +584,44 @@ module.exports = function (options) {
 
     this.on('dataFetched', function (event) {
       /** event {html, worker, responseIsCorrect} */
+      logger.verbose('[dataFetched] event handled');
 
       logger.verbose('Removing parsed uri from uri pool');
       this.removeUriFromPool(event.uri);
 
       if (this.isInterrupted == false) {
-        logger.verbose('Adding url to sitemap array');
-        this.addUriIntoSiteMapUris(event.uri);
-        logger.verbose('[dataFetched] event handled');
+        if(event.responseIsCorrect){
+          logger.verbose('Adding url to sitemap array');
+          this.addUriIntoSiteMapUris(event.uri);
 
-        if (event.responseIsCorrect &&
-          (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
-          var previousUri = event.worker.uri.uri;
+          if (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0) {
+            var previousUri = event.worker.uri.uri;
 
-          logger.verbose('Make a cheerio $');
-          var $ = cheerio.load(event.html);
+            logger.verbose('Make a cheerio $');
+            var $ = cheerio.load(event.html);
 
-          //logger.debug(event.html);
+            //logger.debug(event.html);
 
-          var links = [];
+            var links = [];
 
-          logger.verbose('Make a aTag array');
-          $('a').map(function (index, element) {
-            console.log($(element).attr('href'));
-            links.push($(element).attr('href'));
-          });
+            logger.verbose('Make a aTag array');
+            $('a').map(function (index, element) {
+              console.log($(element).attr('href'));
+              links.push($(element).attr('href'));
+            });
 
-          logger.verbose('Gracefulling....');
-          if (links && links.length) {
-            var newUris = this.filterAndGraceLinks(links, previousUri);
+            logger.verbose('Gracefulling....');
+            if (links && links.length) {
+              var newUris = this.filterAndGraceLinks(links, previousUri);
 
-            logger.verbose('Collected ' + newUris.length + 'new URIs');
+              logger.verbose('Collected ' + newUris.length + 'new URIs');
 
-            _.each(newUris, function (uri) {
-              this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
-            }, this);
-          } else {
-            logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+              _.each(newUris, function (uri) {
+                this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
+              }, this);
+            } else {
+              logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+            }
           }
         }
       }
@@ -637,8 +641,7 @@ module.exports = function (options) {
 
       if (this.isBusy &&
         this.workers.length == 0 &&
-        this.uriPool.length == 0 &&
-        this.siteMapUris.length > 0) {
+        this.uriPool.length == 0) {
         logger.verbose('[jobComplete] event emitted');
         this.emit('jobComplete');
       }
