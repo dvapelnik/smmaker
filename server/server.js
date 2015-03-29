@@ -32,7 +32,7 @@ var logger = new (winston.Logger)({
   ]
 });
 
-var config  = require('./config');
+var config = require('./config');
 
 var wsServer = require('./wsServer')({
   logger: logger,

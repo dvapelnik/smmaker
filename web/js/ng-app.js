@@ -5,10 +5,10 @@
       growlProvider.globalTimeToLive(5000);
     }])
     .controller('MainController', function ($scope, $websocket, growl, validateForm) {
-      $scope.safeApply = function(fn) {
+      $scope.safeApply = function (fn) {
         var phase = this.$root.$$phase;
-        if(phase == '$apply' || phase == '$digest') {
-          if(fn && (typeof(fn) === 'function')) {
+        if (phase == '$apply' || phase == '$digest') {
+          if (fn && (typeof(fn) === 'function')) {
             fn();
           }
         } else {
