@@ -59,25 +59,32 @@ module.exports = function (options) {
     //endregion
 
     //region Utilities
+    this.sendText = function (text) {
+      if (this.socketConnection.readyState == 1) {
+        logger.verbose('Sending text via socket');
+        this.socketConnection.sendText(text);
+      } else {
+        logger.verbose('Can\'t send text via socket');
+        logger.verbose('Socker reary state', this.socketConnection.readyState);
+      }
+    };
+
     this.sendMessage = function (message, type) {
       logger.verbose('Sending message', message, type);
       type = type || 'info';
 
-      if (this.socketConnection.readyState == 1) {
-        this.socketConnection.sendText(JSON.stringify({
-          action: 'message',
-          data: {
-            message: message,
-            type: type
-          }
-        }));
-      } else {
-        logger.info('Socket connection not ready for messaging');
-      }
+      this.sendText(JSON.stringify({
+        action: 'message',
+        data: {
+          message: message,
+          type: type
+        }
+      }));
     };
 
     this.sendTransfer = function (transfer) {
-      this.socketConnection.sendText(JSON.stringify({
+      logger.verbose('Transferring data via socket');
+      this.sendText(JSON.stringify({
         action: 'transfer',
         data: {
           data: transfer
@@ -86,7 +93,8 @@ module.exports = function (options) {
     };
 
     this.sendStatus = function (statusObject) {
-      this.socketConnection.sendText(JSON.stringify({
+      logger.verbose('Sending status via socket');
+      this.sendText(JSON.stringify({
         action: 'update-status',
         data: {
           data: statusObject
@@ -96,7 +104,7 @@ module.exports = function (options) {
 
     this.sendLinks = function (links) {
       logger.verbose('Sending links', links);
-      this.socketConnection.sendText(JSON.stringify({
+      this.sendText(JSON.stringify({
         action: 'send-links',
         data: {
           data: links
@@ -176,7 +184,7 @@ module.exports = function (options) {
         return link != '#';
       });
 
-      logger.warn(links);
+      logger.verbose(links);
 
       var resultUris = _
         .map(links, function (link) {
@@ -202,14 +210,13 @@ module.exports = function (options) {
         })
         .filter(function (link) {
           return _.all(unsupportedExts, function (ext) {
-            return !link.match(new RegExp('\.' + ext, 'i'));
+            return !link.match(new RegExp('\.' + ext + '$', 'i'));
           });
         })
         .filter(function (link) {
           return !link.match(/mailto/);
         })
         .filter(function (link) {
-          logger.warn(link.indexOf(parsedUri.protocol + '//' + parsedUri.host));
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
@@ -218,9 +225,73 @@ module.exports = function (options) {
             _.pluck(_.pluck(this.workers, 'uri'), 'uri').indexOf(link) == -1;
         }, this);
 
-      logger.warn(resultUris);
+      logger.verbose(resultUris);
 
       return _.uniq(resultUris);
+    };
+
+    this.makeARequest = function () {
+      var that = this;
+
+      var uri = this.getUriFromPool();
+
+      if (uri) {
+
+        var httpRequest = request({
+          uri: uri.uri,
+          timeout: 10000,
+          followRedirect: false,
+          followAllRedirects: false,
+          headers: {
+            'User-Agent': 'Mozilla /5.0 (Compatible MSIE 9.0;Windows NT 6.1;WOW64; Trident/5.0)'
+          }
+        }, function (error, response, body) {
+          var responseIsCorrect = false;
+
+          if (response) {
+            logger.debug(response.headers['content-type']);
+          }
+
+          if (error) {
+            logger.error(error);
+            if (error.code == 'ETIMEDOUT') {
+              that.sendMessage('Request error: ' + error.code, 'error');
+            }
+          } else if (response.statusCode > 300 && response.statusCode < 400) {
+            logger.warn(response.headers);
+
+            logger.warn(Url.parse(response.headers.location));
+
+            var parsedLocation = Url.parse(response.headers.location);
+            var parsedPreUri = Url.parse(uri.uri);
+
+            if (parsedLocation.hostname) {
+              that.addUriIntoPool(new Uri(response.headers.location, uri.level));
+              that.makeARequest();
+            } else {
+              that.addUriIntoPool(new Uri(
+                parsedPreUri.protocol + '//' + parsedPreUri.hostname + parsedLocation.pathname, uri.level));
+              that.makeARequest();
+            }
+          } else if (response.statusCode == 200) {
+            logger.verbose('All good', response.statusCode);
+            responseIsCorrect =
+              (response && (response.headers['content-type'] ||
+              response.headers['content-type'].indexOf('text/html') == 0));
+          } else {
+            logger.info('Response status code', response.statusCode);
+            logger.info('Response headers', response.headers);
+          }
+
+          logger.verbose('[dataFetched] event emitted');
+          logger.verbose('Response is correct', responseIsCorrect);
+          that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: responseIsCorrect});
+
+        });
+        httpRequest.uri = uri;
+
+        that.addWorkerInWorkerPool(httpRequest);
+      }
     };
 
     this.addWorkerInWorkerPool = function (worker) {
@@ -417,6 +488,8 @@ module.exports = function (options) {
 
       logger.verbose('[generateSiteMap] event handled');
 
+      this.siteMapUris = _.uniq(this.siteMapUris);
+
       var xml = this.makeXmlString(this.siteMapUris);
 
       logger.info(this.retrieveType);
@@ -514,43 +587,44 @@ module.exports = function (options) {
 
     this.on('dataFetched', function (event) {
       /** event {html, worker, responseIsCorrect} */
+      logger.verbose('[dataFetched] event handled');
 
       logger.verbose('Removing parsed uri from uri pool');
       this.removeUriFromPool(event.uri);
 
       if (this.isInterrupted == false) {
-        logger.verbose('Adding url to sitemap array');
-        this.addUriIntoSiteMapUris(event.uri);
-        logger.verbose('[dataFetched] event handled');
+        if (event.responseIsCorrect) {
+          logger.verbose('Adding url to sitemap array');
+          this.addUriIntoSiteMapUris(event.uri);
 
-        if (event.responseIsCorrect &&
-          (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0)) {
-          var previousUri = event.worker.uri.uri;
+          if (event.worker.uri.level < this.maxNestingLevel || this.maxNestingLevel === 0) {
+            var previousUri = event.worker.uri.uri;
 
-          logger.verbose('Make a cheerio $');
-          var $ = cheerio.load(event.html);
+            logger.verbose('Make a cheerio $');
+            var $ = cheerio.load(event.html);
 
-          logger.warn(event.html);
+            //logger.debug(event.html);
 
-          var links = [];
+            var links = [];
 
-          logger.verbose('Make a aTag array');
-          $('a').map(function (index, element) {
-            console.log($(element).attr('href'));
-            links.push($(element).attr('href'));
-          });
+            logger.verbose('Make a aTag array');
+            $('a').map(function (index, element) {
+              console.log($(element).attr('href'));
+              links.push($(element).attr('href'));
+            });
 
-          logger.verbose('Gracefulling....');
-          if (links && links.length) {
-            var newUris = this.filterAndGraceLinks(links, previousUri);
+            logger.verbose('Gracefulling....');
+            if (links && links.length) {
+              var newUris = this.filterAndGraceLinks(links, previousUri);
 
-            logger.verbose('Collected ' + newUris.length + 'new URIs');
+              logger.verbose('Collected ' + newUris.length + 'new URIs');
 
-            _.each(newUris, function (uri) {
-              this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
-            }, this);
-          } else {
-            logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+              _.each(newUris, function (uri) {
+                this.addUriIntoPool(new Uri(uri, event.worker.uri.level + 1));
+              }, this);
+            } else {
+              logger.verbose('LINKS NOT FOUND TRY TO NEXT STEP');
+            }
           }
         }
       }
@@ -566,42 +640,11 @@ module.exports = function (options) {
 
       var countOfFreeWorkerPlaces = this.countOfWorkers - this.workers.length;
 
-      _.times(Math.min(countOfFreeWorkerPlaces, this.uriPool.length), function () {
-        var uri = this.getUriFromPool();
-
-        if (uri) {
-
-          try {
-            var httpRequest = request({
-              uri: uri.uri,
-              followRedirect: false,
-              followAllRedirects: false
-            }, function (error, response, body) {
-              if (!error && response.statusCode == 200) {
-                logger.verbose('[dataFetched] event emitted');
-                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
-              } else {
-                logger.error(error);
-                logger.warn(response.statusCode);
-                logger.verbose('[dataFetched] event emitted');
-                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
-              }
-            });
-          } catch (e) {
-            logger.error(e);
-            logger.error(e.stack);
-          }
-          httpRequest.uri = uri;
-
-          //httpRequest.end();
-          that.addWorkerInWorkerPool(httpRequest);
-        }
-      }, this);
+      _.times(Math.min(countOfFreeWorkerPlaces, this.uriPool.length), this.makeARequest, this);
 
       if (this.isBusy &&
         this.workers.length == 0 &&
-        this.uriPool.length == 0 &&
-        this.siteMapUris.length > 0) {
+        this.uriPool.length == 0) {
         logger.verbose('[jobComplete] event emitted');
         this.emit('jobComplete');
       }
@@ -621,32 +664,37 @@ module.exports = function (options) {
       /** event {folder} */
       var that = this;
 
-      logger.verbose('Reading dir', event.folder);
-      fs.readdir('web/sitemaps/' + event.folder, function (error, filelist) {
-        if (error) {
-          logger.error(error);
-        } else {
-          logger.info(filelist);
-          if (filelist.length > 0) {
-            if (that.retrieveType == 'link') {
-              that.sendLinks(_.map(filelist, function (file) {
-                return 'sitemaps/' + event.folder + '/' + file;
-              }));
-              that.emit('workComplete');
-            } else if (that.retrieveType == 'email' && that.email) {
-              that.sendEmail(_.map(filelist, function (file) {
-                return 'web/sitemaps/' + event.folder + '/' + file;
-              }), function () {
-                that.emit('workComplete');
-              });
-            } else {
-              logger.warn('No receive transport (link or email) not assigned');
-            }
+      if (this.siteMapUris.length) {
+        logger.verbose('Reading dir', event.folder);
+        fs.readdir('web/sitemaps/' + event.folder, function (error, filelist) {
+          if (error) {
+            logger.error(error);
           } else {
-            that.sendMessage('Sitemap folder is empty. Hm.. Strangely!', 'warning');
+            logger.info(filelist);
+            if (filelist.length > 0) {
+              if (that.retrieveType == 'link') {
+                that.sendLinks(_.map(filelist, function (file) {
+                  return 'sitemaps/' + event.folder + '/' + file;
+                }));
+                that.emit('workComplete');
+              } else if (that.retrieveType == 'email' && that.email) {
+                that.sendEmail(_.map(filelist, function (file) {
+                  return 'web/sitemaps/' + event.folder + '/' + file;
+                }), function () {
+                  that.emit('workComplete');
+                });
+              } else {
+                logger.warn('No receive transport (link or email) not assigned');
+              }
+            } else {
+              that.sendMessage('Sitemap folder is empty. Hm.. Strangely!', 'warning');
+            }
           }
-        }
-      });
+        });
+      } else {
+        this.sendMessage('Sitemap url list is empty. Try to again.', 'warning');
+        this.emit('workComplete');
+      }
     });
     //endregion
 
@@ -704,6 +752,8 @@ module.exports = function (options) {
 
     this.on('socket-disconnected', function () {
       logger.verbose('[socket-disconnected] event handled');
+      logger.verbose('[jobInterrupt] event emitted');
+      this.emit('jobInterrupt');
     });
     //endregion
   }
