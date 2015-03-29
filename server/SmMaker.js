@@ -176,7 +176,7 @@ module.exports = function (options) {
         return link != '#';
       });
 
-      logger.warn(links);
+      logger.verbose(links);
 
       var resultUris = _
         .map(links, function (link) {
@@ -209,7 +209,6 @@ module.exports = function (options) {
           return !link.match(/mailto/);
         })
         .filter(function (link) {
-          logger.warn(link.indexOf(parsedUri.protocol + '//' + parsedUri.host));
           return link.indexOf(parsedUri.protocol + '//' + parsedUri.host) == 0;
         })
         .filter(function (link) {
@@ -218,12 +217,12 @@ module.exports = function (options) {
             _.pluck(_.pluck(this.workers, 'uri'), 'uri').indexOf(link) == -1;
         }, this);
 
-      logger.warn(resultUris);
+      logger.verbose(resultUris);
 
       return _.uniq(resultUris);
     };
 
-    this.makeARequest = function(){
+    this.makeARequest = function () {
       var that = this;
 
       var uri = this.getUriFromPool();
@@ -235,15 +234,37 @@ module.exports = function (options) {
           followRedirect: false,
           followAllRedirects: false
         }, function (error, response, body) {
-          if (!error && response.statusCode == 200) {
-            logger.verbose('[dataFetched] event emitted');
-            that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
-          } else {
+          var responseIsCorrect = false;
+
+          if (error) {
             logger.error(error);
-            logger.warn(response.statusCode);
-            logger.verbose('[dataFetched] event emitted');
-            that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
+          } else if (response.statusCode > 300 && response.statusCode < 400) {
+            logger.warn(response.headers);
+
+            logger.warn(Url.parse(response.headers.location));
+
+            var parsedLocation = Url.parse(response.headers.location);
+            var parsedPreUri = Url.parse(uri.uri);
+
+            if (parsedLocation.hostname) {
+              that.addUriIntoPool(new Uri(response.headers.location, 1));
+              that.makeARequest();
+            } else {
+              that.addUriIntoPool(new Uri(
+                parsedPreUri.protocol + '//' + parsedPreUri.hostname + parsedLocation.pathname, 1));
+              that.makeARequest();
+            }
+          } else if (response.statusCode == 200) {
+            responseIsCorrect = true;
+          } else {
+            logger.info('Response status code', response.statusCode);
+            logger.info('Response headers', response.headers);
           }
+
+          logger.verbose('[dataFetched] event emitted');
+          logger.verbose('Response is correct', responseIsCorrect);
+          that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: responseIsCorrect});
+
         });
         httpRequest.uri = uri;
 
@@ -558,7 +579,7 @@ module.exports = function (options) {
           logger.verbose('Make a cheerio $');
           var $ = cheerio.load(event.html);
 
-          logger.warn(event.html);
+          logger.verbose(event.html);
 
           var links = [];
 
@@ -702,6 +723,8 @@ module.exports = function (options) {
 
     this.on('socket-disconnected', function () {
       logger.verbose('[socket-disconnected] event handled');
+      logger.verbose('[jobInterrupt] event emitted');
+      this.emit('jobInterrupt');
     });
     //endregion
   }
