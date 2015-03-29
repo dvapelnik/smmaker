@@ -266,11 +266,11 @@ module.exports = function (options) {
             var parsedPreUri = Url.parse(uri.uri);
 
             if (parsedLocation.hostname) {
-              that.addUriIntoPool(new Uri(response.headers.location, 1));
+              that.addUriIntoPool(new Uri(response.headers.location, uri.level));
               that.makeARequest();
             } else {
               that.addUriIntoPool(new Uri(
-                parsedPreUri.protocol + '//' + parsedPreUri.hostname + parsedLocation.pathname, 1));
+                parsedPreUri.protocol + '//' + parsedPreUri.hostname + parsedLocation.pathname, uri.level));
               that.makeARequest();
             }
           } else if (response.statusCode == 200) {
