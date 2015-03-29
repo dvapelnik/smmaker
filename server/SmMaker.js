@@ -18,7 +18,7 @@ var unsupportedExts = [
   'gif', 'png', 'avi', 'flv', 'mp4',
   'swf', 'zip', 'rar', 'gz', 'tgz',
   'wmv', 'wma', 'mp3', 'ogg', 'flac'
-]
+];
 
 function Uri(uri, level) {
   this.uri = uri;
