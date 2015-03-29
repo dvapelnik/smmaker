@@ -571,29 +571,23 @@ module.exports = function (options) {
 
         if (uri) {
 
-          try {
-            var httpRequest = request({
-              uri: uri.uri,
-              followRedirect: false,
-              followAllRedirects: false
-            }, function (error, response, body) {
-              if (!error && response.statusCode == 200) {
-                logger.verbose('[dataFetched] event emitted');
-                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
-              } else {
-                logger.error(error);
-                logger.warn(response.statusCode);
-                logger.verbose('[dataFetched] event emitted');
-                that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
-              }
-            });
-          } catch (e) {
-            logger.error(e);
-            logger.error(e.stack);
-          }
+          var httpRequest = request({
+            uri: uri.uri,
+            followRedirect: false,
+            followAllRedirects: false
+          }, function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+              logger.verbose('[dataFetched] event emitted');
+              that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
+            } else {
+              logger.error(error);
+              logger.warn(response.statusCode);
+              logger.verbose('[dataFetched] event emitted');
+              that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
+            }
+          });
           httpRequest.uri = uri;
 
-          //httpRequest.end();
           that.addWorkerInWorkerPool(httpRequest);
         }
       }, this);
