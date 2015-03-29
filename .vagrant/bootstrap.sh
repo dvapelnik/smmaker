@@ -16,4 +16,4 @@ cd /var/www/html && npm update
 cat /etc/shadow | grep vagrant
 
 #cd /var/www/html && npm run start
-#cd /var/www/html && npm run supervisor
+cd /var/www/html && npm run supervisor
