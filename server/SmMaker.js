@@ -10,14 +10,16 @@ var builder = require('xmlbuilder');
 var async = require('async');
 var fs = require('fs');
 var nodemailer = require('nodemailer');
-var normalizeurl = require('normalizeurl');
 var request = require('request');
 
 var unsupportedExts = [
   'js', 'css', 'bmp', 'jpg', 'jpeg',
   'gif', 'png', 'avi', 'flv', 'mp4',
   'swf', 'zip', 'rar', 'gz', 'tgz',
-  'wmv', 'wma', 'mp3', 'ogg', 'flac'
+  'wmv', 'wma', 'mp3', 'ogg', 'flac',
+  'doc', 'docx', 'xls', 'xlsx', 'ppt',
+  'pptx', 'xml', 'js', 'css', 'lass',
+  'sass', 'less', '7z'
 ];
 
 function Uri(uri, level) {
@@ -172,6 +174,9 @@ module.exports = function (options) {
     };
 
     this.addUriIntoSiteMapUris = function (uri) {
+      if(uri.level == 1){
+        this.targetSiteUri = uri.uri;
+      }
       this.siteMapUris.push(uri);
     };
 
