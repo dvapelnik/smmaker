@@ -4,14 +4,6 @@ var fs = require('fs');
 winston = require('winston');
 
 module.exports = function (options) {
-  options = options || {
-    logger: new (winston.Logger)({
-      transports: [
-        new (winston.transports.Console)()
-      ]
-    })
-  };
-
   var logger = options.logger;
 
   var app = new express();

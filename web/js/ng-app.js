@@ -89,7 +89,7 @@
       };
       $scope.run = function () {
         if (validateForm($scope.form)) {
-          $scope.siteMapUris = [];
+          $scope.sitemapLinks = [];
           $scope.$apply();
 
           socket.send(JSON.stringify({
@@ -118,11 +118,12 @@
 
       function getInitialFormState() {
         return {
+          targetSiteUri: '',
           //targetSiteUri: 'http://getbootstrap.com/',
-          targetSiteUri: 'http://just-try-another.blogspot.nl/',
+          //targetSiteUri: 'http://just-try-another.blogspot.nl/',
           //targetSiteUri: 'http://pmg17.vn.ua',
-          maxNestingLevel: 3,
-          countOfWorkers: 10,
+          maxNestingLevel: 2,
+          countOfWorkers: 25,
           changefreq: $scope.chageFreqOptions[2],
           mbLengthLimit: 10,
           uriCountLimitPerFile: 50000,

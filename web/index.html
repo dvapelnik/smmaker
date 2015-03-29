@@ -177,6 +177,7 @@
                             </button>
                             <button
                                     class="btn btn-danger"
+                                    ng-hide="true"
                                     style="font-weight: bold"
                                     ng-disabled="!getJobStatusObject().isBusy"
                                     ng-click="interrupt()">
@@ -191,6 +192,7 @@
                             </button>
                             <button
                                     class="btn btn-default"
+                                    ng-hide="true"
                                     style="font-weight: bold"
                                     ng-disabled="!getJobStatusObject().isBusy"
                                     ng-click="getStatus()">
