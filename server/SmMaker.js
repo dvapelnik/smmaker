@@ -210,7 +210,7 @@ module.exports = function (options) {
         })
         .filter(function (link) {
           return _.all(unsupportedExts, function (ext) {
-            return !link.match(new RegExp('\.' + ext, 'i'));
+            return !link.match(new RegExp('\.' + ext + '$', 'i'));
           });
         })
         .filter(function (link) {
@@ -240,9 +240,14 @@ module.exports = function (options) {
         var httpRequest = request({
           uri: uri.uri,
           followRedirect: false,
-          followAllRedirects: false
+          followAllRedirects: false,
+          timeout: 10000
         }, function (error, response, body) {
           var responseIsCorrect = false;
+
+          if(response){
+            logger.debug(response.headers['content-type']);
+          }
 
           if (error) {
             logger.error(error);
@@ -263,7 +268,10 @@ module.exports = function (options) {
               that.makeARequest();
             }
           } else if (response.statusCode == 200) {
-            responseIsCorrect = true;
+            logger.verbose('All good', response.statusCode);
+            responseIsCorrect =
+              (response && (response.headers['content-type'] ||
+              response.headers['content-type'].indexOf('text/html') == 0));
           } else {
             logger.info('Response status code', response.statusCode);
             logger.info('Response headers', response.headers);
@@ -589,7 +597,7 @@ module.exports = function (options) {
           logger.verbose('Make a cheerio $');
           var $ = cheerio.load(event.html);
 
-          logger.verbose(event.html);
+          //logger.debug(event.html);
 
           var links = [];
 
