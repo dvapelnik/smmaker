@@ -466,6 +466,8 @@ module.exports = function (options) {
 
       logger.verbose('[generateSiteMap] event handled');
 
+      this.siteMapUris = _.uniq(this.siteMapUris);
+
       var xml = this.makeXmlString(this.siteMapUris);
 
       logger.info(this.retrieveType);
