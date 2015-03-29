@@ -223,6 +223,34 @@ module.exports = function (options) {
       return _.uniq(resultUris);
     };
 
+    this.makeARequest = function(){
+      var that = this;
+
+      var uri = this.getUriFromPool();
+
+      if (uri) {
+
+        var httpRequest = request({
+          uri: uri.uri,
+          followRedirect: false,
+          followAllRedirects: false
+        }, function (error, response, body) {
+          if (!error && response.statusCode == 200) {
+            logger.verbose('[dataFetched] event emitted');
+            that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
+          } else {
+            logger.error(error);
+            logger.warn(response.statusCode);
+            logger.verbose('[dataFetched] event emitted');
+            that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
+          }
+        });
+        httpRequest.uri = uri;
+
+        that.addWorkerInWorkerPool(httpRequest);
+      }
+    };
+
     this.addWorkerInWorkerPool = function (worker) {
       this.workers.push(worker);
       logger.verbose('Worker added into worker-pool');
@@ -566,31 +594,7 @@ module.exports = function (options) {
 
       var countOfFreeWorkerPlaces = this.countOfWorkers - this.workers.length;
 
-      _.times(Math.min(countOfFreeWorkerPlaces, this.uriPool.length), function () {
-        var uri = this.getUriFromPool();
-
-        if (uri) {
-
-          var httpRequest = request({
-            uri: uri.uri,
-            followRedirect: false,
-            followAllRedirects: false
-          }, function (error, response, body) {
-            if (!error && response.statusCode == 200) {
-              logger.verbose('[dataFetched] event emitted');
-              that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: true});
-            } else {
-              logger.error(error);
-              logger.warn(response.statusCode);
-              logger.verbose('[dataFetched] event emitted');
-              that.emit('dataFetched', {html: body, worker: httpRequest, uri: uri, responseIsCorrect: false});
-            }
-          });
-          httpRequest.uri = uri;
-
-          that.addWorkerInWorkerPool(httpRequest);
-        }
-      }, this);
+      _.times(Math.min(countOfFreeWorkerPlaces, this.uriPool.length), this.makeARequest, this);
 
       if (this.isBusy &&
         this.workers.length == 0 &&
