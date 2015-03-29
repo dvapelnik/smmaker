@@ -241,18 +241,21 @@ module.exports = function (options) {
           uri: uri.uri,
           timeout: 10000,
           followRedirect: false,
-          followAllRedirects: false
+          followAllRedirects: false,
+          headers: {
+            'User-Agent': 'Mozilla /5.0 (Compatible MSIE 9.0;Windows NT 6.1;WOW64; Trident/5.0)'
+          }
         }, function (error, response, body) {
           var responseIsCorrect = false;
 
-          if(response){
+          if (response) {
             logger.debug(response.headers['content-type']);
           }
 
           if (error) {
             logger.error(error);
-            if(error.code == 'ETIMEDOUT'){
-              that.sendMessage('Request error: '+error.code, 'error');
+            if (error.code == 'ETIMEDOUT') {
+              that.sendMessage('Request error: ' + error.code, 'error');
             }
           } else if (response.statusCode > 300 && response.statusCode < 400) {
             logger.warn(response.headers);
@@ -590,7 +593,7 @@ module.exports = function (options) {
       this.removeUriFromPool(event.uri);
 
       if (this.isInterrupted == false) {
-        if(event.responseIsCorrect){
+        if (event.responseIsCorrect) {
           logger.verbose('Adding url to sitemap array');
           this.addUriIntoSiteMapUris(event.uri);
 
@@ -661,32 +664,37 @@ module.exports = function (options) {
       /** event {folder} */
       var that = this;
 
-      logger.verbose('Reading dir', event.folder);
-      fs.readdir('web/sitemaps/' + event.folder, function (error, filelist) {
-        if (error) {
-          logger.error(error);
-        } else {
-          logger.info(filelist);
-          if (filelist.length > 0) {
-            if (that.retrieveType == 'link') {
-              that.sendLinks(_.map(filelist, function (file) {
-                return 'sitemaps/' + event.folder + '/' + file;
-              }));
-              that.emit('workComplete');
-            } else if (that.retrieveType == 'email' && that.email) {
-              that.sendEmail(_.map(filelist, function (file) {
-                return 'web/sitemaps/' + event.folder + '/' + file;
-              }), function () {
-                that.emit('workComplete');
-              });
-            } else {
-              logger.warn('No receive transport (link or email) not assigned');
-            }
+      if (this.siteMapUris.length) {
+        logger.verbose('Reading dir', event.folder);
+        fs.readdir('web/sitemaps/' + event.folder, function (error, filelist) {
+          if (error) {
+            logger.error(error);
           } else {
-            that.sendMessage('Sitemap folder is empty. Hm.. Strangely!', 'warning');
+            logger.info(filelist);
+            if (filelist.length > 0) {
+              if (that.retrieveType == 'link') {
+                that.sendLinks(_.map(filelist, function (file) {
+                  return 'sitemaps/' + event.folder + '/' + file;
+                }));
+                that.emit('workComplete');
+              } else if (that.retrieveType == 'email' && that.email) {
+                that.sendEmail(_.map(filelist, function (file) {
+                  return 'web/sitemaps/' + event.folder + '/' + file;
+                }), function () {
+                  that.emit('workComplete');
+                });
+              } else {
+                logger.warn('No receive transport (link or email) not assigned');
+              }
+            } else {
+              that.sendMessage('Sitemap folder is empty. Hm.. Strangely!', 'warning');
+            }
           }
-        }
-      });
+        });
+      } else {
+        this.sendMessage('Sitemap url list is empty. Try to again.', 'warning');
+        this.emit('workComplete');
+      }
     });
     //endregion
 
