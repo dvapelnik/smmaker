@@ -602,6 +602,9 @@ module.exports = function (options) {
       // унифицируем список ссылок для генерации фронтэнда
       this.siteMapUris = _.uniq(this.siteMapUris);
 
+      // генерируем XML-строку
+      var xml = this.makeXmlString(this.siteMapUris);
+
       logger.info(this.retrieveType);
 
       // нужно для содания папки для сайтмапа
@@ -623,9 +626,6 @@ module.exports = function (options) {
           if (that.siteMapUris.length < that.uriCountLimitPerFile &&
             that.getByteLengthOfString(xml) < that.getByteLengthLimit()) {
             // если мы укладываемся, то генерируем ОДИН файл
-
-            // генерируем XML-строку
-            var xml = that.makeXmlString(that.siteMapUris);
             fs.writeFile(
               'web/sitemaps/' + currentUnixTimestamp + '/sitemap.xml',
               xml,
