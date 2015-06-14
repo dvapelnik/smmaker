@@ -1,6 +1,6 @@
 # SMMaker - Sitemap generator
 
-Demo: git@github.com:dvapelnik/smmaker.git
+Demo: http://smmaker.vapelnik.pp.ua/
 
 Вариант решения задания отборочного этапа UaWebChallenge VII для Middle/Senior BackEnd разработчика
 
